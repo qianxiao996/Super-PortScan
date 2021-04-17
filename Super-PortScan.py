@@ -352,10 +352,10 @@ def  scan(ip_list,port_list,threadNum,timeout):
                 t.start()
             for t in threads:#阻塞线程，等待线程结束
                 # print(len(threads))
-                if len(threads)==0:
-                    # exit()
-                    time.sleep(5)
-                    break
+                # if len(threads)==0:
+                #     # exit()
+                #     time.sleep(5)
+                #     break
                 t.join()
                 threads=[]
             printYellow('[*] The '+ip+' is complete!')
@@ -376,10 +376,10 @@ def  scan(ip_list,port_list,threadNum,timeout):
                 for t in threads:#启动线程
                     t.start()
                 for t in threads:#阻塞线程，等待线程结束
-                    if len(threads)==0:
-                        # exit()
-                        time.sleep(5)
-                        break
+                    # if len(threads)==0:
+                    #     # exit()
+                    #     time.sleep(5)
+                    #     break
                     t.join()
                     threads=[]
                 printYellow('[*] The '+ip+' is complete!')
