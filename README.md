@@ -50,6 +50,8 @@ python3 Super-PortScan.py -i 127.0.0.1 -v
 python3 Super-PortScan.py -i 127.0.0.1 -t 100
 ```
 
-![3](./3.png)
+![3](./img/3.png)
 
-GUI版本等待更新
+html扫描报告
+
+![3](./img/1.png)
