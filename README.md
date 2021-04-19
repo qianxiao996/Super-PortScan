@@ -50,7 +50,7 @@ python3 Super-PortScan.py -i 127.0.0.1 -v
 python3 Super-PortScan.py -i 127.0.0.1 -t 100
 ```
 
-![image-20210419134656178](./img/image-20210419134656178.png)
+![image-20210419134656178](./img/2.png)
 
 html扫描报告
 
