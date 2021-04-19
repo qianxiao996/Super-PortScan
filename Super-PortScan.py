@@ -3,8 +3,171 @@
 from socket import *
 import threading      #导入线程相关模块
 import queue,os,random
-import argparse,time
+import argparse,time,re
 from color import *
+
+
+
+signs_rules=[
+'http|^HTTP.*',
+'ssh|SSH-2.0-OpenSSH.*',
+'ssh|SSH-1.0-OpenSSH.*',
+'netbios|^\x79\x08.*BROWSE',
+'netbios|^\x79\x08.\x00\x00\x00\x00',
+'netbios|^\x05\x00\x0d\x03',
+'netbios|^\x83\x00',
+'netbios|^\x82\x00\x00\x00',
+'netbios|\x83\x00\x00\x01\x8f',
+'backdoor-fxsvc|^500 Not Loged in',
+'backdoor-shell|GET: command',
+'backdoor-shell|sh: GET:',
+'bachdoor-shell|[a-z]*sh: .* command not found',
+'backdoor-shell|^bash[$#]',
+'backdoor-shell|^sh[$#]',
+'backdoor-cmdshell|^Microsoft Windows .* Copyright .*>',
+'db2|.*SQLDB2RA',
+'dell-openmanage|^\x4e\x00\x0d',
+'finger|^\r\n	Line	  User',
+'finger|Line	 User',
+'finger|Login name: ',
+'finger|Login.*Name.*TTY.*Idle',
+'finger|^No one logged on',
+'finger|^\r\nWelcome',
+'finger|^finger:',
+'finger|^must provide username',
+'finger|finger: GET: ',
+'ftp|^220.*\n331',
+'ftp|^220.*\n530',
+'ftp|^220.*FTP',
+'ftp|^220 .* Microsoft .* FTP',
+'ftp|^220 Inactivity timer',
+'ftp|^220 .* UserGate',
+'http|^HTTP/0.',
+'http|^HTTP/1.',
+'http|<HEAD>.*<BODY>',
+'http|<HTML>.*',
+'http|<html>.*',
+'http|<!DOCTYPE.*',
+'http|^Invalid requested URL ',
+'http|.*<?xml',
+'http|^HTTP/.*\nServer: Apache/1',
+'http|^HTTP/.*\nServer: Apache/2',
+'http-iis|.*Microsoft-IIS',
+'http-iis|^HTTP/.*\nServer: Microsoft-IIS',
+'http-iis|^HTTP/.*Cookie.*ASPSESSIONID',
+'http-iis|^<h1>Bad Request .Invalid URL.</h1>',
+'http-jserv|^HTTP/.*Cookie.*JServSessionId',
+'http-tomcat|^HTTP/.*Cookie.*JSESSIONID',
+'http-weblogic|^HTTP/.*Cookie.*WebLogicSession',
+'http-vnc|^HTTP/.*VNC desktop',
+'http-vnc|^HTTP/.*RealVNC/',
+'ldap|^\x30\x0c\x02\x01\x01\x61',
+'ldap|^\x30\x32\x02\x01',
+'ldap|^\x30\x33\x02\x01',
+'ldap|^\x30\x38\x02\x01',
+'ldap|^\x30\x84',
+'ldap|^\x30\x45',
+'smb|^\0\0\0.\xffSMBr\0\0\0\0.*',
+'msrdp|^\x03\x00\x00\x0b',
+'msrdp|^\x03\x00\x00\x11',
+'msrdp|^\x03\0\0\x0b\x06\xd0\0\0\x12.\0$',
+'msrdp|^\x03\0\0\x17\x08\x02\0\0Z~\0\x0b\x05\x05@\x06\0\x08\x91J\0\x02X$',
+'msrdp|^\x03\0\0\x11\x08\x02..}\x08\x03\0\0\xdf\x14\x01\x01$',
+'msrdp|^\x03\0\0\x0b\x06\xd0\0\0\x03.\0$',
+'msrdp|^\x03\0\0\x0b\x06\xd0\0\0\0\0\0',
+'msrdp|^\x03\0\0\x0e\t\xd0\0\0\0[\x02\xa1]\0\xc0\x01\n$',
+'msrdp|^\x03\0\0\x0b\x06\xd0\0\x004\x12\0',
+'msrdp-proxy|^nmproxy: Procotol byte is not 8\n$',
+'msrpc|^\x05\x00\x0d\x03\x10\x00\x00\x00\x18\x00\x00\x00\x00\x00',
+'msrpc|\x05\0\r\x03\x10\0\0\0\x18\0\0\0....\x04\0\x01\x05\0\0\0\0$',
+'mssql|^\x04\x01\0C..\0\0\xaa\0\0\0/\x0f\xa2\x01\x0e.*',
+'mssql|^\x05\x6e\x00',
+'mssql|^\x04\x01\x00\x25\x00\x00\x01\x00\x00\x00\x15.*',
+'mssql|^\x04\x01\x00.\x00\x00\x01\x00\x00\x00\x15.*',
+'mssql|^\x04\x01\x00\x25\x00\x00\x01\x00\x00\x00\x15.*',
+'mssql|^\x04\x01\x00.\x00\x00\x01\x00\x00\x00\x15.*',
+'mssql|^\x04\x01\0\x25\0\0\x01\0\0\0\x15\0\x06\x01.*',
+'mssql|^\x04\x01\x00\x25\x00\x00\x01.*',
+'telnet|^xff\xfb\x01\xff\xfb\x03\xff\xfb\0\xff\xfd.*',
+'mssql|;MSSQLSERVER;',
+'mysql|.*mysql.*',
+'mysql|.*mysql_native_password.*/g',
+'mysql|^\x19\x00\x00\x00\x0a',
+'mysql|^\x2c\x00\x00\x00\x0a',
+'mysql|hhost \'',
+'mysql|khost \'',
+'mysql|mysqladmin',
+'mysql|whost \'',
+'mysql-blocked|^\(\x00\x00',
+'mysql-secured|this MySQL',
+'mongodb|^.*version.....([\.\d]+)',
+'nagiosd|Sorry, you \(.*are not among the allowed hosts...',
+'nessus|< NTP 1.2 >\x0aUser:',
+'oracle-tns-listener|\(ERROR_STACK=\(ERROR=\(CODE=',
+'oracle-tns-listener|\(ADDRESS=\(PROTOCOL=',
+'oracle-dbsnmp|^\x00\x0c\x00\x00\x04\x00\x00\x00\x00',
+'oracle-https|^220- ora',
+'oracle-rmi|\x00\x00\x00\x76\x49\x6e\x76\x61',
+'oracle-rmi|^\x4e\x00\x09',
+'postgres|Invalid packet length',
+'postgres|^EFATAL',
+'rlogin|login: ',
+'rlogin|rlogind: ',
+'rlogin|^\x01\x50\x65\x72\x6d\x69\x73\x73\x69\x6f\x6e\x20\x64\x65\x6e\x69\x65\x64\x2e\x0a',
+'rpc-nfs|^\x02\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00',
+'rpc|\x01\x86\xa0',
+'rpc|\x03\x9b\x65\x42\x00\x00\x00\x01',
+'rpc|^\x80\x00\x00',
+'rsync|^@RSYNCD:.*',
+'smux|^\x41\x01\x02\x00',
+'snmp-public|\x70\x75\x62\x6c\x69\x63\xa2',
+'snmp|\x41\x01\x02',
+'socks|^\x05[\x00-\x08]\x00',
+'ssh|^SSH-',
+'ssh|^SSH-.*openssh',
+'ssl|^..\x04\0.\0\x02',
+'ssl|^\x16\x03\x01..\x02...\x03\x01',
+'ssl|^\x16\x03\0..\x02...\x03\0',
+'ssl|SSL.*GET_CLIENT_HELLO',
+'ssl|-ERR .*tls_start_servertls',
+'ssl|^\x16\x03\0\0J\x02\0\0F\x03\0',
+'ssl|^\x16\x03\0..\x02\0\0F\x03\0',
+'ssl|^\x15\x03\0\0\x02\x02\.*',
+'ssl|^\x16\x03\x01..\x02...\x03\x01',
+'ssl|^\x16\x03\0..\x02...\x03\0',
+'sybase|^\x04\x01\x00',
+'telnet|^\xff\xfd',
+'telnet|Telnet is disabled now',
+'telnet|^\xff\xfe',
+'tftp|^\x00[\x03\x05]\x00',
+'http-tomcat|.*Servlet-Engine',
+'uucp|^login: password: ',
+'vnc|^RFB.*',
+'webmin|.*MiniServ',
+'webmin|^0\.0\.0\.0:.*:[0-9]',
+'websphere-javaw|^\x15\x00\x00\x00\x02\x02\x0a']
+
+
+
+PROBES=[
+'\r\n\r\n',
+'GET / HTTP/1.0\r\n\r\n',
+'GET / \r\n\r\n',
+'\x01\x00\x00\x00\x01\x00\x00\x00\x08\x08',
+'\x80\0\0\x28\x72\xFE\x1D\x13\0\0\0\0\0\0\0\x02\0\x01\x86\xA0\0\x01\x97\x7C\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+'\x03\0\0\x0b\x06\xe0\0\0\0\0\0',
+'\0\0\0\xa4\xff\x53\x4d\x42\x72\0\0\0\0\x08\x01\x40\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x40\x06\0\0\x01\0\0\x81\0\x02PC NETWORK PROGRAM 1.0\0\x02MICROSOFT NETWORKS 1.03\0\x02MICROSOFT NETWORKS 3.0\0\x02LANMAN1.0\0\x02LM1.2X002\0\x02Samba\0\x02NT LANMAN 1.0\0\x02NT LM 0.12\0',
+'\x80\x9e\x01\x03\x01\x00u\x00\x00\x00 \x00\x00f\x00\x00e\x00\x00d\x00\x00c\x00\x00b\x00\x00:\x00\x009\x00\x008\x00\x005\x00\x004\x00\x003\x00\x002\x00\x00/\x00\x00\x1b\x00\x00\x1a\x00\x00\x19\x00\x00\x18\x00\x00\x17\x00\x00\x16\x00\x00\x15\x00\x00\x14\x00\x00\x13\x00\x00\x12\x00\x00\x11\x00\x00\n\x00\x00\t\x00\x00\x08\x00\x00\x06\x00\x00\x05\x00\x00\x04\x00\x00\x03\x07\x00\xc0\x06\x00@\x04\x00\x80\x03\x00\x80\x02\x00\x80\x01\x00\x80\x00\x00\x02\x00\x00\x01\xe4i<+\xf6\xd6\x9b\xbb\xd3\x81\x9f\xbf\x15\xc1@\xa5o\x14,M \xc4\xc7\xe0\xb6\xb0\xb2\x1f\xf9)\xe8\x98',
+'\x16\x03\0\0S\x01\0\0O\x03\0?G\xd7\xf7\xba,\xee\xea\xb2`~\xf3\0\xfd\x82{\xb9\xd5\x96\xc8w\x9b\xe6\xc4\xdb<=\xdbo\xef\x10n\0\0(\0\x16\0\x13\0\x0a\0f\0\x05\0\x04\0e\0d\0c\0b\0a\0`\0\x15\0\x12\0\x09\0\x14\0\x11\0\x08\0\x06\0\x03\x01\0',
+'< NTP/1.2 >\n',
+'< NTP/1.1 >\n',
+'< NTP/1.0 >\n',
+'\0Z\0\0\x01\0\0\0\x016\x01,\0\0\x08\0\x7F\xFF\x7F\x08\0\0\0\x01\0 \0:\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\04\xE6\0\0\0\x01\0\0\0\0\0\0\0\0(CONNECT_DATA=(COMMAND=version))',
+'\x12\x01\x00\x34\x00\x00\x00\x00\x00\x00\x15\x00\x06\x01\x00\x1b\x00\x01\x02\x00\x1c\x00\x0c\x03\x00\x28\x00\x04\xff\x08\x00\x01\x55\x00\x00\x00\x4d\x53\x53\x51\x4c\x53\x65\x72\x76\x65\x72\x00\x48\x0f\x00\x00',
+'\0\0\0\0\x44\x42\x32\x44\x41\x53\x20\x20\x20\x20\x20\x20\x01\x04\0\0\0\x10\x39\x7a\0\x01\0\0\0\0\0\0\0\0\0\0\x01\x0c\0\0\0\0\0\0\x0c\0\0\0\x0c\0\0\0\x04',
+'\x01\xc2\0\0\0\x04\0\0\xb6\x01\0\0\x53\x51\x4c\x44\x42\x32\x52\x41\0\x01\0\0\x04\x01\x01\0\x05\0\x1d\0\x88\0\0\0\x01\0\0\x80\0\0\0\x01\x09\0\0\0\x01\0\0\x40\0\0\0\x01\x09\0\0\0\x01\0\0\x40\0\0\0\x01\x08\0\0\0\x04\0\0\x40\0\0\0\x01\x04\0\0\0\x01\0\0\x40\0\0\0\x40\x04\0\0\0\x04\0\0\x40\0\0\0\x01\x04\0\0\0\x04\0\0\x40\0\0\0\x01\x04\0\0\0\x04\0\0\x40\0\0\0\x01\x04\0\0\0\x02\0\0\x40\0\0\0\x01\x04\0\0\0\x04\0\0\x40\0\0\0\x01\0\0\0\0\x01\0\0\x40\0\0\0\0\x04\0\0\0\x04\0\0\x80\0\0\0\x01\x04\0\0\0\x04\0\0\x80\0\0\0\x01\x04\0\0\0\x03\0\0\x80\0\0\0\x01\x04\0\0\0\x04\0\0\x80\0\0\0\x01\x08\0\0\0\x01\0\0\x40\0\0\0\x01\x04\0\0\0\x04\0\0\x40\0\0\0\x01\x10\0\0\0\x01\0\0\x80\0\0\0\x01\x10\0\0\0\x01\0\0\x80\0\0\0\x01\x04\0\0\0\x04\0\0\x40\0\0\0\x01\x09\0\0\0\x01\0\0\x40\0\0\0\x01\x09\0\0\0\x01\0\0\x80\0\0\0\x01\x04\0\0\0\x03\0\0\x80\0\0\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\x01\x04\0\0\x01\0\0\x80\0\0\0\x01\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\0\x40\0\0\0\x01\0\0\0\0\x01\0\0\x40\0\0\0\0\x20\x20\x20\x20\x20\x20\x20\x20\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x01\0\xff\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\xe4\x04\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x7f',
+'\x41\0\0\0\x3a\x30\0\0\xff\xff\xff\xff\xd4\x07\0\0\0\0\0\0test.$cmd\0\0\0\0\0\xff\xff\xff\xff\x1b\0\0\0\x01serverStatus\0\0\0\0\0\0\0\xf0\x3f\0'
+]
 
 
 
@@ -15,7 +178,7 @@ html_head='''
     <style type="text/css">
         /*表格样式*/			
 table {
-            table-layout: fixed;
+            /*table-layout: fixed;*/
             /* word-break:break-all; */
             width: 80%;
             margin: 10px auto;
@@ -76,7 +239,7 @@ table {
         　　}
         　　return pwd;
         }
-        function add_table(ip,port,flag,banner,url){
+        function add_table(ip,port,flag,service,banner,url){
             var rand_str = randomString(10)
             var table=document.getElementById("data");
             var tr=document.createElement("tr");
@@ -86,6 +249,7 @@ table {
             var td3=document.createElement("td");
             var td4=document.createElement("td");
             var td5=document.createElement("td");
+            var td6=document.createElement("td");
 
 
             var insert_a=document.createElement("a");
@@ -98,17 +262,19 @@ table {
             td1.innerHTML=ip;
             td2.innerHTML=port;
             td3.innerHTML=flag;
-            td4.innerHTML=banner;
+            td4.innerHTML=service;
+            td5.innerHTML=banner;
     
 
 
-            td5.appendChild(insert_a);
+            td6.appendChild(insert_a);
 
             tr.appendChild(td1);
             tr.appendChild(td2);
             tr.appendChild(td3);
             tr.appendChild(td4);
             tr.appendChild(td5);
+            tr.appendChild(td6);
             table.appendChild(tr);
             }
     </script>
@@ -125,6 +291,7 @@ table {
                     <th>IP地址</th>
                     <th>端口</th>
                     <th>状态</th>
+                    <th>服务</th>
                     <th>Banner</th>
                     <th>URL地址</th>
                 </tr>
@@ -268,54 +435,162 @@ def portScanner(portQueue,timeout):
             if result == 0:
                 tcp.send("test".encode(encoding='utf-8'))
                 try:
-                    Banner = tcp.recv(60).decode("raw_unicode_escape")
-                    tcp.close()
+                    Banner = tcp.recv(100).decode("raw_unicode_escape")
+                    service=matchbanner(Banner,signs_rules)
+                    if service=="Unknown":
+                        return_Data  = scanservice(host, port,timeout)
+                        service = return_Data[0]
+                        Banner =return_Data[1]
                     # print(Banner)
-                    # Banner = (str(Banner).strip('b\'').strip('\\n').strip('\\r').replace('"', '').strip('\''))
+                    # print(service)
                 except:
-                    Banner = 'unknow'
-                out_result(host,port,'opened',Banner)
-                # printGreen(('[-] '+'%s\t%s\t')%(host.ljust(15, ' '),port.ljust(6, ' '))+('opened'.ljust(6, ' '))+('\t\t%s') % ( Banner.ljust(20, ' ')))
+                    return_Data = scanservice(host, port, timeout)
+                    service = return_Data[0]
+                    Banner = return_Data[1]
+
+
+                out_result(host,port,'Opened',Banner,service)
             else:
                 if  flag:
-                    out_result(host,port,'close',"None")
+                    out_result(host,port,'Close',"None",'Unknown')
         except:
             if  flag:
-                    out_result(host,port,'close',"None")
+                out_result(host, port, 'Close', "None", 'Unknown')
             continue
         finally:
             try:
                 tcp.close()
             except:
                 pass
-def out_result(host,port,zhuangtai,Banner='None'):
-    lock.acquire()  #加锁
-    if out_txt!='':
-        f=open(out_txt,"a")
-        f.write(host+' '+port+' opened '+Banner+'\n')
-        f.close
-    if out_html !='':
-        url_address = "http://"+host+':'+port
-        # out_str='11'
-        
-
-        out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+Banner+'","'+url_address+'");</script>'
-
-        if os.path.exists(out_html):
-            f=open(out_html,"a")
-            f.write(out_str)
-            f.close
-        else:
-            # print(out_html)
-            f2=open(out_html,"a")
-            f2.write(html_head)
-            # f2.write(host+' '+port+' opened '+Banner+'\n')
-            f2.write(out_str)
-            f2.close
-    if zhuangtai=='opened':
-        printGreen(('[-] '+'%s\t%s\t')%(host.ljust(15, ' '),port.ljust(6, ' '))+('opened'.ljust(6, ' '))+('\t\t%s') % ( Banner.ljust(20, ' ')))
+def scanservice(host,port,timeout):
+    return_result =''
+    service='Unknown'
+    for probe in PROBES:
+        try:
+            sd = socket(AF_INET, SOCK_STREAM)
+            sd.settimeout(int(timeout))
+            sd.connect((host, int(port)))
+            sd.send(probe.encode(encoding='utf-8'))
+        except:
+            continue
+        try:
+            result = sd.recv(100).decode("raw_unicode_escape")
+            service = matchbanner(result, signs_rules)
+            if service != 'Unknown':
+                return_result =result
+                break
+        except:
+            continue
+    if service!="Unknown":
+        pass
     else:
-        printDarkGray(('[-] '+'%s\t%s\t')%(host.ljust(15, ' '),port.ljust(6, ' '))+('close'.ljust(6, ' '))+('\t\t%s') % ( "None".ljust(20, ' ')))
+        service = get_server(str(port))
+    return service,return_result
+   
+def get_server(port):
+    SERVER = {
+        'FTP': '21',
+        'SSH': '22',
+        'Telnet': '23',
+        'SMTP': '25',
+        'DNS': '53',
+        'DHCP': '68',
+        'HTTP': '80',
+        'TFTP': '69',
+        'HTTP': '8080',
+        'POP3': '995',
+        'NetBIOS': '139',
+        'IMAP': '143',
+        'HTTPS': '443',
+        'SNMP': '161',
+        'LDAP': '489',
+        'SMB': '445',
+        'SMTPS': '465',
+        'Linux R RPE': '512',
+        'Linux R RLT': '513',
+        'Linux R cmd': '514',
+        'Rsync': '873',
+        'IMAPS': '993',
+        'Proxy': '1080',
+        'JavaRMI': '1099',
+        'Lotus': '1352',
+        'MSSQL': '1433',
+        'MSSQL': '1434',
+        'Oracle': '1521',
+        'PPTP': '1723',
+        'cPanel': '2082',
+        'CPanel': '2083',
+        'Zookeeper': '2181',
+        'Docker': '2375',
+        'Zebra': '2604',
+        'MySQL': '3306',
+        'Kangle': '3312',
+        'RDP': '3389',
+        'SVN': '3690',
+        'Rundeck': '4440',
+        'GlassFish': '4848',
+        'PostgreSql': '5432',
+        'PcAnywhere': '5632',
+        'VNC': '5900',
+        'CouchDB': '5984',
+        'varnish': '6082',
+        'Redis': '6379',
+        'Weblogic': '9001',
+        'Kloxo': '7778',
+        'Zabbix': '8069',
+        'RouterOS': '8291',
+        'Elasticsearch': '9200',
+        'Elasticsearch': '9300',
+        'Zabbix': '10050',
+        'Zabbix': '10051',
+        'Memcached': '11211',
+        'MongoDB': '27017',
+        'MongoDB': '28017',
+        'Hadoop': '50070'
+    }
+    for k, v in SERVER.items():
+        if v == port:
+            return k
+    return 'Unknown'
+
+def matchbanner(banner,slist):
+    for item in slist:
+        item = item.split('|')
+        p=re.compile(item[1])
+        if p.search(banner)!=None:
+            return item[0]
+    return 'Unknown'
+def out_result(host,port,zhuangtai,Banner='None',service='Unknown'):
+    lock.acquire()  #加锁
+    if zhuangtai=='Opened':
+        Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+        printGreen('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+        6, ' ') + '\t\t' + Banner.ljust(20, ' '))
+    else:
+        Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+
+        printDarkGray('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+            6, ' ') + '\t\t' + Banner.ljust(20, ' '))
+    try:
+        if out_txt!='':
+            f=open(out_txt,"a")
+            f.write(host+' '+port+' opened '+service+'\n')
+            f.close()
+        if out_html !='':
+            url_address = "http://"+host+':'+port
+            Banner = re.sub('[^!-~]+',' ',Banner).strip()
+            out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
+
+            if os.path.exists(out_html):
+                f2 = open(out_html, "a")
+                f2.write(out_str)
+            else:
+                f2 = open(out_html, "a")
+                f2.write(html_head)
+                f2.write(out_str)
+            f2.close()
+    except:
+        print('文件写入出错！')
 
     lock.release()  #执行完 ，释放锁
     #创建线程
@@ -325,6 +600,7 @@ def createThread(num,portQueue,timeout,threads):
         i= threading.Thread(target=portScanner, args=(portQueue,timeout))
         threads.append(i)
 def  scan(ip_list,port_list,threadNum,timeout):
+    # print(get_server(str(22)))
     # print(port_list)
     # ip_list=['192.168.1.1','192.168.1.2']
     # port_list = [80, 25, 110]
@@ -337,7 +613,9 @@ def  scan(ip_list,port_list,threadNum,timeout):
     for ip in ip_list:
         if(jp_flag==1):
             printYellow('[*] The '+ip+' is Start!')
-            printSkyBlue('[*] '+'Host'.ljust(15,' ')+'\t'+'Port'.ljust(6,' ')+'\t'+'Status'.ljust(6,' ')+'\t\t'+'Banner'.ljust(20,' '))
+            printSkyBlue('[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
+                                                                                                                ' ') + '\t\t' + 'Service'.ljust(
+                6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
             threads=[]#线程列表
             portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
             portQueue.queue.clear()
@@ -362,7 +640,9 @@ def  scan(ip_list,port_list,threadNum,timeout):
         else:
             if(startPing(ip)):
                 printSkyBlue('[*] The '+ip+' is Up!')
-                printSkyBlue('[*] '+'Host'.ljust(15,' ')+'\t'+'Port'.ljust(6,' ')+'\t'+'Status'.ljust(6,' ')+'\t\t'+'Banner'.ljust(20,' '))
+                printSkyBlue('[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
+                                                                                                                  ' ') + '\t\t' + 'Service'.ljust(
+                    6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
                 threads=[]#线程列表
                 portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
                 portQueue.queue.clear()
@@ -407,6 +687,9 @@ if __name__ == '__main__':
     out_txt=''#输出txt文件
     out_html=''
     lock = threading.Lock() #申请一个锁
+    # out_html = '111.html'
+    # scan(['129.204.113.202'], [80,3306,8080,21], 22,1)
+    # exit();
     all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
     parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
     group = parser.add_mutually_exclusive_group()
@@ -417,7 +700,7 @@ if __name__ == '__main__':
     parser.add_argument("-jp",action="store_true",help="跳过主机发现")
     parser.add_argument("-ts",help="设置超时时间，默认1s")
     parser.add_argument("-v", action="store_true",help="显示所有扫描结果")
-    parser.add_argument("-t", "--threads", help="定义扫描的线程，默认为30")
+    parser.add_argument("-t", "--threads", help="定义扫描的线程，默认为400")
     parser.add_argument("--txt", help="定义输出文本文件")
     parser.add_argument("--html",help="定义输出html文件")
     
@@ -448,7 +731,7 @@ if __name__ == '__main__':
         if args.threads:
             scan(ip_list,port_list,int(args.threads),timeout)
         else:
-            scan(ip_list,port_list,30,timeout)
+            scan(ip_list,port_list,400,timeout)
         # for i in ip_list:
         #     scan(i, port_list, threadNum)
     if args.file:
@@ -460,5 +743,5 @@ if __name__ == '__main__':
         if args.threads:
             scan(ip_list,port_list,int(args.threads),timeout)
         else:
-            scan(ip_list, port_list, 30,timeout)
+            scan(ip_list, port_list, 400,timeout)
 
