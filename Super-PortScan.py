@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 from socket import *
 import threading      #导入线程相关模块
-import queue,os,random
+import queue,os
 import argparse,time,re
 from color import *
-
 
 
 signs_rules=[
@@ -175,9 +174,16 @@ html_head='''
 <html>
 <head>
     <title>Super-PortScan Sacn Result</title>
+    <link rel="stylesheet" href="http://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css">
+    <script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+    <script src="http://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/rainabba/jquery-table2excel@master/src/jquery.table2excel.js"></script>
+    
+
+
     <style type="text/css">
         /*表格样式*/			
-table {
+        table {
             /*table-layout: fixed;*/
             /* word-break:break-all; */
             width: 80%;
@@ -201,11 +207,12 @@ table {
             /* text-align: left; */
             padding: 0.5em;
         }	
-        td a {
+        table tbody tr td a {
             color: #06f;
             text-decoration: none;
-        }		
-        td a:visited
+        }	
+        	
+        table tbody tr td a:visited
         {
             color:	green;
             text-decoration: none;
@@ -222,87 +229,101 @@ table {
             background-color:white ;
             color: black;
         }
+        
     </style>
-    <script>
-        function changecolor(id)
-        {
-            document.getElementById(id).style.backgroundColor="#D8BFD8";	
-
-        }
-                function randomString(len) {
-        　　len = len || 32;
-        　　var $chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';    /****默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1****/
-        　　var maxPos = $chars.length;
-        　　var pwd = '';
-        　　for (i = 0; i < len; i++) {
-        　　　　pwd += $chars.charAt(Math.floor(Math.random() * maxPos));
-        　　}
-        　　return pwd;
-        }
-        function add_table(ip,port,flag,service,banner,url){
-            var rand_str = randomString(10)
-            var table=document.getElementById("data");
-            var tr=document.createElement("tr");
-            tr.id=rand_str;
-            var td1=document.createElement("td");
-            var td2=document.createElement("td");
-            var td3=document.createElement("td");
-            var td4=document.createElement("td");
-            var td5=document.createElement("td");
-            var td6=document.createElement("td");
-
-
-            var insert_a=document.createElement("a");
-            // insert_a.onclick=
-            insert_a.href=url;
-            insert_a.target='_blank';
-            insert_a.innerHTML=url;
-            insert_a.setAttribute("onclick",'changecolor("'+rand_str+'")');
-            // inp3.nodeValue='aaa'
-            td1.innerHTML=ip;
-            td2.innerHTML=port;
-            td3.innerHTML=flag;
-            td4.innerHTML=service;
-            td5.innerHTML=banner;
-    
-
-
-            td6.appendChild(insert_a);
-
-            tr.appendChild(td1);
-            tr.appendChild(td2);
-            tr.appendChild(td3);
-            tr.appendChild(td4);
-            tr.appendChild(td5);
-            tr.appendChild(td6);
-            table.appendChild(tr);
-            }
-    </script>
 </head>
 <body style="margin:0px;background-color:#F0F2F5">
-    <div style="position: fixed;background: rgb(8, 103, 193);width:100%">
+    <div style="position: fixed;background: rgb(8, 103, 193);width:100%; z-index:9999">
         <p  style="color:white;width: 100%;height: 20px;display: block;line-height: 20px;text-align: center;">Super-PortScan Sacn Result</p>
     </div>
-    <div style="padding-top:50px">
-    
-        <table align="center">
-            <thead>
-                <tr>
-                    <th>IP地址</th>
-                    <th>端口</th>
-                    <th>状态</th>
-                    <th>服务</th>
-                    <th>Banner</th>
-                    <th>URL地址</th>
-                </tr>
-            </thead>
-            <tbody id='data'>
-            </tbody>
-            
+    <div style="padding-top:70px;padding-bottom:0px;padding-left:80px;padding-right:80px">
+        <table id="table" align="center">
         </table>
     </div>
 </body>
-</html>'''
+</html>
+<script>
+
+    $("#table").dataTable({
+         //lengthMenu: [5, 10, 20, 30],//这里也可以设置分页，但是不能设置具体内容，只能是一维或二维数组的方式，所以推荐下面language里面的写法。
+        destroy:true,
+        "autoWidth": false,
+        paging: true,//分页
+        ordering: true,//是否启用排序
+        searching: true,//搜索
+        language: {
+            lengthMenu: '<select class="form-control input-xsmall">' + '<option value="1">1</option>' + '<option value="10">10</option>' + '<option value="20">20</option>' + '<option value="30">30</option>' + '<option value="40">40</option>' + '<option value="50">50</option>' + '</select>条记录',//左上角的分页大小显示。
+            search: '<button onclick="exportCsv()" style="margin:2px 30px">导出CSV</button><span class="label label-success" style="">搜索:</span>',//右上角的搜索文本，可以写html标签
+            
+            paginate: {//分页的样式内容。
+                previous: "上一页",
+                next: "下一页",
+                first: "第一页",
+                last: "最后"
+            },
+
+            zeroRecords: "无扫描结果",//table tbody内容为空时，tbody的内容。
+            //下面三者构成了总体的左下角的内容。
+            info: "总共_PAGES_ 页，显示第_START_ 到第 _END_ ，筛选之后得到 _TOTAL_ 条，初始_MAX_ 条 ",//左下角的信息显示，大写的词为关键字。
+            infoEmpty: "0条记录",//筛选为空时左下角的显示。
+            infoFiltered: ""//筛选之后的左下角筛选提示，
+        },
+        paging: true,
+        pagingType: "full_numbers",//分页样式的类型
+
+
+        columns: [
+        { title: "IP地址", sortable: true },
+        { title: "端口", sortable: true },
+        { title: "状态", sortable: true },
+        { title: "服务", sortable: true },
+        { title: "Banner", sortable: true },
+        { title: "URL地址", sortable: true, render: function(data, type, row) { return '<a  href="'+data+'" target="_blank">' + data + '</a>'; }},
+    ]       
+
+    });
+    $("#table_local_filter input[type=search]").css({ width: "auto" });//右上角的默认搜索文本框，不写这个就超出去了。
+    $('#table').on( 'click', 'tr', function () {
+        var table = $('#table').DataTable();
+        // var id = table.row(this).row();
+        var background = $(this).css('backgroundColor');
+        // console.log(background);
+        
+        if(background=="rgb(216, 191, 216)")
+        {
+            $(this).css("background","white");
+        }
+        else
+        {
+            $(this).css("background","rgb(216, 191, 216)");
+        }
+
+        // alert( '被点击行的id是 '+id );
+    } );
+
+    function add_table(ip,port,flag,service,banner,url){
+        var t = $('#table').DataTable();
+        t.row.add( [ip,port,flag,service,banner,url
+        ] ).draw( false );
+    }
+
+
+    
+    function exportCsv() {
+            $("#table").table2excel({
+                exclude: ".noExl",
+                name: "Excel Document Name",
+                // Excel文件的名称
+                filename: "Super-PortScan Sacn Result",
+                exclude_img: true,
+                exclude_links: true,
+                exclude_inputs: true
+            });
+        }
+
+        
+</script>
+'''
 
 def get_system():
     if os.name == 'nt':
@@ -486,7 +507,7 @@ def scanservice(host,port,timeout):
     else:
         service = get_server(str(port))
     return service,return_result
-   
+
 def get_server(port):
     SERVER = {
         'FTP': '21',
@@ -577,8 +598,14 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown'):
             f.write(host+' '+port+' opened '+service+'\n')
             f.close()
         if out_html !='':
-            url_address = "http://"+host+':'+port
+            
             Banner = re.sub('[^!-~]+',' ',Banner).strip()
+            if 'http' in service or 'HTTP' in service:
+                url_address = "http://"+host+':'+port
+            elif 'https' in service or 'HTTPS' in service:
+                url_address = "https://"+host+':'+port
+            else:
+                url_address = ""
             out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
 
             if os.path.exists(out_html):
@@ -600,6 +627,7 @@ def createThread(num,portQueue,timeout,threads):
         i= threading.Thread(target=portScanner, args=(portQueue,timeout))
         threads.append(i)
 def  scan(ip_list,port_list,threadNum,timeout):
+
     # print(get_server(str(22)))
     # print(port_list)
     # ip_list=['192.168.1.1','192.168.1.2']
@@ -666,8 +694,10 @@ def  scan(ip_list,port_list,threadNum,timeout):
             else:
                 printDarkGray('[*] '+ip+' is down!')
 
-       
+
     printYellow('[*] The Scan is complete!')
+
+
 
 
 if __name__ == '__main__':
@@ -723,6 +753,7 @@ if __name__ == '__main__':
         remove_port.extend(remove_port_temp)
         # print(remove_port)
     if args.ip:
+        port_list=[]
         if  args.port :
             port_list = get_port_list(args.port)
         if not args.port:
@@ -734,7 +765,9 @@ if __name__ == '__main__':
             scan(ip_list,port_list,400,timeout)
         # for i in ip_list:
         #     scan(i, port_list, threadNum)
+
     if args.file:
+        port_list=[]
         if  args.port :
             port_list = get_port_list(args.port)
         if not args.port:
@@ -744,4 +777,5 @@ if __name__ == '__main__':
             scan(ip_list,port_list,int(args.threads),timeout)
         else:
             scan(ip_list, port_list, 400,timeout)
+
 
