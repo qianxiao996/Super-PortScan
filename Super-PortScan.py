@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 from socket import *
 import threading      #导入线程相关模块
-import queue,os
+import queue,os,requests
 import argparse,time,re
 from color import *
+requests.packages.urllib3.disable_warnings()
 
 
 signs_rules=[
@@ -454,6 +455,7 @@ def portScanner(portQueue,timeout):
             result = tcp.connect_ex((host, int(port)))  # 效率比connect高，成功时返回0，失败时返回错误码
             # print(port+"success")
             if result == 0:
+                url_address=''
                 tcp.send("test".encode(encoding='utf-8'))
                 try:
                     Banner = tcp.recv(100).decode("raw_unicode_escape")
@@ -468,15 +470,29 @@ def portScanner(portQueue,timeout):
                     return_Data = scanservice(host, port, timeout)
                     service = return_Data[0]
                     Banner = return_Data[1]
+                if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
+                    try:
+                        if  service =='https' or  service =='HTTPS':
+                            url_address = 'https://'+host+':'+port
+                        else:
+                            url_address = 'http://'+host+':'+port
+                        html = requests.get(url_address,verify = False).text
+                        # print (html)
+                        Banner=re.search('<title>(.+)</title>',html).group().replace('<title>','').replace('</title>','')
+                        # print (title)
+                        
 
+                    except:
+                        Banner =Banner
 
-                out_result(host,port,'Opened',Banner,service)
+                # Banner=''
+                out_result(host,port,'Opened',Banner,service,url_address)
             else:
                 if  flag:
-                    out_result(host,port,'Close',"None",'Unknown')
+                    out_result(host,port,'Close',"None",'Unknown','')
         except:
             if  flag:
-                out_result(host, port, 'Close', "None", 'Unknown')
+                out_result(host, port, 'Close', "None", 'Unknown','')
             continue
         finally:
             try:
@@ -495,11 +511,17 @@ def scanservice(host,port,timeout):
         except:
             continue
         try:
-            result = sd.recv(100).decode("raw_unicode_escape")
+            result = sd.recv(1024).decode("raw_unicode_escape")
             service = matchbanner(result, signs_rules)
+            # print(result)
+            if "https" in result or "HTTPS" in result:
+                service ='https'
+                return_result =result
+                break
             if service != 'Unknown':
                 return_result =result
                 break
+
         except:
             continue
     if service!="Unknown":
@@ -581,7 +603,7 @@ def matchbanner(banner,slist):
         if p.search(banner)!=None:
             return item[0]
     return 'Unknown'
-def out_result(host,port,zhuangtai,Banner='None',service='Unknown'):
+def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address=''):
     lock.acquire()  #加锁
     if zhuangtai=='Opened':
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
@@ -598,14 +620,10 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown'):
             f.write(host+' '+port+' opened '+service+'\n')
             f.close()
         if out_html !='':
-            
-            Banner = re.sub('[^!-~]+',' ',Banner).strip()
-            if 'http' in service or 'HTTP' in service:
-                url_address = "http://"+host+':'+port
-            elif 'https' in service or 'HTTPS' in service:
-                url_address = "https://"+host+':'+port
-            else:
-                url_address = ""
+            # print(Banner)
+            Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
+            # print(Banner)
+            # Banner = Banner.strip()
             out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
 
             if os.path.exists(out_html):
@@ -718,7 +736,7 @@ if __name__ == '__main__':
     out_html=''
     lock = threading.Lock() #申请一个锁
     # out_html = '111.html'
-    # scan(['129.204.113.202'], [80,3306,8080,21], 22,1)
+    # scan(['blog.qianxiao996.cn'], [443], 22,1)
     # exit();
     all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
     parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
