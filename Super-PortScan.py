@@ -612,7 +612,7 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address='
     else:
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
 
-        printDarkGray('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+        printDarkGray('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
             6, ' ') + '\t\t' + Banner.ljust(20, ' '))
     try:
         if out_txt!='':
