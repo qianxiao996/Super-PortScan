@@ -512,12 +512,12 @@ def scanservice(host,port,timeout):
             continue
         try:
             result = sd.recv(1024).decode("raw_unicode_escape")
-            service = matchbanner(result, signs_rules)
             # print(result)
-            if "https" in result or "HTTPS" in result:
+            if ("<title>400 Bad Request</title>"in result and  "https" in result ) or ("<title>400 Bad Request</title>"in result and  "HTTPS" in result ):
                 service ='https'
                 return_result =result
                 break
+            service = matchbanner(result, signs_rules)
             if service != 'Unknown':
                 return_result =result
                 break
