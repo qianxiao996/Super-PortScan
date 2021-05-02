@@ -3,8 +3,10 @@
 from socket import *
 import threading      #导入线程相关模块
 import queue,os,requests
-import argparse,time,re
-from color import *
+import re
+from colorama import init, Fore
+import click
+from tqdm import tqdm
 requests.packages.urllib3.disable_warnings()
 
 
@@ -253,7 +255,7 @@ html_head='''
         ordering: true,//是否启用排序
         searching: true,//搜索
         language: {
-            lengthMenu: '<select class="form-control input-xsmall">' + '<option value="1">1</option>' + '<option value="10">10</option>' + '<option value="20">20</option>' + '<option value="30">30</option>' + '<option value="40">40</option>' + '<option value="50">50</option>' + '</select>条记录',//左上角的分页大小显示。
+            lengthMenu: '<select class="form-control input-xsmall">' + '<option value="1">1</option>' + '<option value="10">10</option>' + '<option value="20">20</option>' + '<option value="50">50</option>' + '<option value="100">100</option>' + '<option value="200">200</option>'  + '<option value="500">500</option>'  + '<option value="1000">1000</option>' + '</select>条记录',//左上角的分页大小显示。
             search: '<button onclick="exportCsv()" style="margin:2px 30px">导出CSV</button><span class="label label-success" style="">搜索:</span>',//右上角的搜索文本，可以写html标签
             
             paginate: {//分页的样式内容。
@@ -367,6 +369,7 @@ def get_ip_d_list(ip):
             ip_list.append(ip[:ip.rfind('.')] + '.' + str(i))
     else:
         ip_list = ip.split()
+
     # 列表去重
     all_list = []
     for i in ip_list:
@@ -388,9 +391,10 @@ def get_ip_f_list(file):
                     all_list2.append(i)
             return list(filter(None, all_list2))  # 去除 none 和 空字符
         except:
-            printRed('Error:文件读取错误！')
+            print(Fore.RED+'Error:文件读取错误！')
+            exit()
     else:
-        printRed('Error:文件不存在')
+        print(Fore.RED+'Error:文件不存在')
         exit()
 #得到端口列表
 def get_port_list(port):
@@ -423,9 +427,32 @@ def get_port_list(port):
     for i in port_list:
         if  int(i) > 65535:
             port_list.remove(i)
-    port_list = diff_of_two_list(port_list,remove_port)
+    port_list = diff_of_two_list(port_list,all_remove_port)
     # print(port_list)
     return port_list
+def get_port_file_list(port_file_path):
+        
+    try:
+        if os.path.exists(port_file_path):
+            file_cls = open(port_file_path,'r',encoding= 'utf-8')
+            data = file_cls.read()
+            try:
+                port_list = data.split(',')
+                for i in port_list:
+                    try:    
+                        if  int(i) > 65535:
+                            port_list.remove(i)
+                    except:
+                        port_list.remove(i)
+            except:
+                print(Fore.RED+'Error:端口文件读取错误！')
+            port_list = diff_of_two_list(port_list,all_remove_port)
+            return port_list
+        else:
+            print(Fore.RED+'Error:端口文件不存在！')
+    except:
+        print(Fore.RED+'Error:文件读取错误！')
+
 #从list1排除list2
 def diff_of_two_list(list1,list2):
     for value in list2:
@@ -440,13 +467,14 @@ def diff_of_two_list(list1,list2):
         # print(type(value))
     # return list(set(list1)-set(list2))
 
-def portScanner(portQueue,timeout):
+def portScanner(portQueue,timeout,pbar):
     while True:
         if portQueue.empty():  # 队列空就结束
             break
         ip_port = portQueue.get()  # 从队列中取出
         host = ip_port.split(':')[0]
         port = ip_port.split(':')[1]
+        pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
         # print(host,port)
         try:
             tcp = socket(AF_INET, SOCK_STREAM)
@@ -488,6 +516,7 @@ def portScanner(portQueue,timeout):
                 # Banner=''
                 out_result(host,port,'Opened',Banner,service,url_address)
             else:
+                # print(flag)
                 if  flag:
                     out_result(host,port,'Close',"None",'Unknown','')
         except:
@@ -499,6 +528,7 @@ def portScanner(portQueue,timeout):
                 tcp.close()
             except:
                 pass
+        pbar.update(1)
 def scanservice(host,port,timeout):
     return_result =''
     service='Unknown'
@@ -607,12 +637,12 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address='
     lock.acquire()  #加锁
     if zhuangtai=='Opened':
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
-        printGreen('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+        tqdm.write(Fore.GREEN+'[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
         6, ' ') + '\t\t' + Banner.ljust(20, ' '))
     else:
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
 
-        printDarkGray('[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
+        tqdm.write(Fore.BLACK+'[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
             6, ' ') + '\t\t' + Banner.ljust(20, ' '))
     try:
         if out_txt!='':
@@ -635,17 +665,16 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address='
                 f2.write(out_str)
             f2.close()
     except:
-        print('文件写入出错！')
+        print(Fore.RED+'文件写入出错！')
 
     lock.release()  #执行完 ，释放锁
     #创建线程
-def createThread(num,portQueue,timeout,threads):
-    # portScanner(portQueue,timeout)
+def createThread(num,portQueue,timeout,threads,pbar):
+    # portScanner(portQueue,timeout,pbar)
     for i in range(num):
-        i= threading.Thread(target=portScanner, args=(portQueue,timeout))
+        i= threading.Thread(target=portScanner, args=(portQueue,timeout,pbar))
         threads.append(i)
 def  scan(ip_list,port_list,threadNum,timeout):
-
     # print(get_server(str(22)))
     # print(port_list)
     # ip_list=['192.168.1.1','192.168.1.2']
@@ -654,72 +683,163 @@ def  scan(ip_list,port_list,threadNum,timeout):
         threadNum=threadNum
     else:
         threadNum =len(port_list)
-    printSkyBlue('[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(ip_list),len(port_list),len(remove_port),threadNum))
-    printYellow('[*] The Scan is Start')
-    for ip in ip_list:
-        if(jp_flag==1):
-            printYellow('[*] The '+ip+' is Start!')
-            printSkyBlue('[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
-                                                                                                                ' ') + '\t\t' + 'Service'.ljust(
-                6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
-            threads=[]#线程列表
-            portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
-            portQueue.queue.clear()
-            for i in port_list:
-                # print(port_list)
-                portQueue.put(ip+':'+str(i))
-            # print(threadNum)
-            # print(portQueue.qsize())
-            # print(threadNum)
-            createThread(threadNum, portQueue,timeout,threads)
-            for t in threads:#启动线程
-                t.start()
-            for t in threads:#阻塞线程，等待线程结束
-                # print(len(threads))
-                # if len(threads)==0:
-                #     # exit()
-                #     time.sleep(5)
-                #     break
-                t.join()
-                threads=[]
-            printYellow('[*] The '+ip+' is complete!')
+    print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(ip_list),len(port_list),len(all_remove_port),threadNum))
+    print(Fore.YELLOW+'[*] The Scan is Start')
+    count = len(port_list)*len(ip_list)
+    try:
+        with tqdm(total=count,ncols=100) as pbar:
+            for ip in ip_list:
+                ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
+                if(jp_flag==1):
+                    tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Start!')
+                    tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
+                                                                                                                        ' ') + '\t\t' + 'Service'.ljust(
+                        6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+                    threads=[]#线程列表
+                    portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
+                    portQueue.queue.clear()
+                    for i in port_list:
+                        # print(port_list)
+                        portQueue.put(ip+':'+str(i))
+                    # print(threadNum)
+                    # print(portQueue.qsize())
+                    # print(threadNum)
+                    createThread(threadNum, portQueue,timeout,threads,pbar)
+                    for t in threads:#启动线程
+                        t.start()
+                    for t in threads:#阻塞线程，等待线程结束
+                        # print(len(threads))
+                        # if len(threads)==0:
+                        #     # exit()
+                        #     time.sleep(5)
+                        #     break
+                        t.join()
+                        threads=[]
+                    tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
+
+                    #
+                else:
+                    if(startPing(ip)):
+                        # pbar.update(1)
+                        tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Up!')
+                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
+                                                                                                                        ' ') + '\t\t' + 'Service'.ljust(
+                            6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+                        threads=[]#线程列表
+                        portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
+                        portQueue.queue.clear()
+                        for i in port_list:
+                            # print(port_list)
+                            portQueue.put(ip+':'+str(i))
+                        # print(portQueue.qsize())
+                        # print(threadNum)/
+                        createThread(threadNum, portQueue,timeout,threads,pbar)
+                        # print(threads)
+                        for t in threads:#启动线程
+                            t.start()
+                        for t in threads:#阻塞线程，等待线程结束
+                            # if len(threads)==0:
+                            #     # exit()
+                            #     time.sleep(5)
+                            #     break
+                            t.join()
+                            threads = []
+                        tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
+
+
+                            # tqdm.write('[*] The '+ip+' is complete!')
+                    else:
+                        pbar.update(len(port_list))
+                        tqdm.write(Fore.BLACK+'[*] '+ip+' is down!')
+                            # pbar.close()
+
+            tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
+            pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
+            pbar.close()
+    except KeyboardInterrupt:
+        print(Fore.RED+"用户中途退出！")
+        exit()
+        pass
+
+@click.command()
+
+@click.version_option(version='1.3.2')
+@click.option("-i", "--ip",help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
+@click.option("-f", "--file",help="从文件加载ip列表",default='')
+@click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
+@click.option("-pf", "--port_file",help="从文件加载端口列表，使用逗号分隔",default='')
+@click.option("-rp","--remove_port",help="定义排除的端口，例如:25,110",default='25,110')
+@click.option("-jp","--jump_port",help="跳过主机发现",is_flag=True)
+@click.option("-to","--timeout",help="设置超时时间",default=1,show_default=True)
+@click.option("-v", "--verbose", is_flag=True,help="显示详细信息")
+@click.option("-t", "--threads",show_default=True,default=400, help="定义扫描的线程")
+@click.option("--txt", help="定义输出文本文件",default='')
+@click.option("--html",help="定义输出html文件",default='')
+def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
+    try:
+        # click.echo('%s' % ip)    
+        # args = parser.parse_args()
+        if verbose:
+            global  flag
+            flag=1
+        if jump_port:
+            global jp_flag
+            jp_flag=1
+        if txt:
+            global  out_txt
+            out_txt=txt
+        if html:
+            global  out_html
+            out_html=html
+
+        if timeout:
+            timeout=int(timeout)
         else:
-            if(startPing(ip)):
-                printSkyBlue('[*] The '+ip+' is Up!')
-                printSkyBlue('[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
-                                                                                                                  ' ') + '\t\t' + 'Service'.ljust(
-                    6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
-                threads=[]#线程列表
-                portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
-                portQueue.queue.clear()
-                for i in port_list:
-                    # print(port_list)
-                    portQueue.put(ip+':'+str(i))
-                # print(portQueue.qsize())
-                # print(threadNum)/
-                createThread(threadNum, portQueue,timeout,threads)
-                # print(threads)
-                for t in threads:#启动线程
-                    t.start()
-                for t in threads:#阻塞线程，等待线程结束
-                    # if len(threads)==0:
-                    #     # exit()
-                    #     time.sleep(5)
-                    #     break
-                    t.join()
-                    threads=[]
-                printYellow('[*] The '+ip+' is complete!')
+            timeout=1
+        
+        if remove_port:
+            remove_port_temp = (remove_port).split(",")
+            # print(type(remove_port_temp))
+            global all_remove_port
+            all_remove_port.extend(remove_port_temp)
+            # print(remove_port)
+        if ip:
+            port_list=[]
+            if  port :
+                port_list = get_port_list(port)
+            elif port_file:
+                port_list = get_port_file_list(port_file)
             else:
-                printDarkGray('[*] '+ip+' is down!')
+                port_list = diff_of_two_list(all_port_list,all_remove_port)
+            ip_list =  get_ip_d_list(ip)
+            if threads:
+                scan(ip_list,port_list,int(threads),timeout)
+            else:
+                scan(ip_list,port_list,400,timeout)
+            # for i in ip_list:
+            #     scan(i, port_list, threadNum)
 
+        if file:
+            port_list=[]
+            if port :
+                port_list = get_port_list(port)
+            elif port_file:
+                port_list = get_port_file_list(port_file)
+            else:
+                port_list = diff_of_two_list(all_port_list,all_remove_port)
+            ip_list =  get_ip_f_list(file)
+            if threads:
+                scan(ip_list,port_list,int(threads),timeout)
+            else:
+                scan(ip_list, port_list, 400,timeout)
 
-    printYellow('[*] The Scan is complete!')
-
-
-
+    except:
+        print(Fore.RED+'参数输入错误！')
 
 if __name__ == '__main__':
-    printDarkSkyBlue('''
+    init(autoreset=True)    #  初始化，并且设置颜色设置自动恢复
+    # sys.argv=["-i","222"]
+    print(Fore.CYAN+'''
    _____                         _____           _    _____   
   / ____|                       |  __ \         | |  / ____|                
  | (___  _   _ _ __   ___ _ __  | |__) |__  _ __| |_| (___   ___ __ _ _ __  
@@ -731,69 +851,30 @@ if __name__ == '__main__':
                        github: https://github.com/qianxiao996/Super-PortScan''')
     flag = 0  # 是否显示过程
     jp_flag=0 #跳过主机发现
-    remove_port=[25,110] #排除的端口
     out_txt=''#输出txt文件
     out_html=''
+    all_remove_port=[] #排除的端口
     lock = threading.Lock() #申请一个锁
     # out_html = '111.html'
-    # scan(['blog.qianxiao996.cn'], [443], 22,1)
-    # exit();
+    # scan(['blog.qianxiao996.cn','129.204.113.202'], [443,80,8081], 22,1)
+    # exit()
     all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
-    parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("-i", "--ip" ,help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99")
-    group.add_argument("-f", "--file",help="从文件加载ip列表")
-    parser.add_argument("-p", "--port", help="定义扫描的端口，例如:80、80,8080、80-8000")
-    parser.add_argument("-rp",help="定义排除的端口，例如:25,110")
-    parser.add_argument("-jp",action="store_true",help="跳过主机发现")
-    parser.add_argument("-ts",help="设置超时时间，默认1s")
-    parser.add_argument("-v", action="store_true",help="显示所有扫描结果")
-    parser.add_argument("-t", "--threads", help="定义扫描的线程，默认为400")
-    parser.add_argument("--txt", help="定义输出文本文件")
-    parser.add_argument("--html",help="定义输出html文件")
+    click_main()
+
+    # exit()
+    # parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
+    # group = parser.add_mutually_exclusive_group()
+    # @click.option("-i", "--ip" ,help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99")
+    # @click.option("-f", "--file",help="从文件加载ip列表")
+    # @click.option("-p", "--port", help="定义扫描的端口，例如:80、80,8080、80-8000")
+    # @click.option("-rp",help="定义排除的端口，例如:25,110")
+    # @click.option("-jp",action="store_true",help="跳过主机发现")
+    # @click.option("-ts",help="设置超时时间，默认1s")
+    # @click.option("-v", action="store_true",help="显示所有扫描结果")
+    # @click.option("-t", "--threads", help="定义扫描的线程，默认为400")
+    # @click.option("--txt", help="定义输出文本文件")
+    # @click.option("--html",help="定义输出html文件")
     
-    args = parser.parse_args()
-    if args.v:
-        flag=1
-    if args.jp:
-        jp_flag=1
-    if args.txt:
-        out_txt=args.txt
-    if args.html:
-        out_html=args.html
 
-    if args.ts:
-        timeout=int(args.ts)
-    else:
-        timeout=1
-    if args.rp:
-        remove_port_temp = (args.rp).split(",")
-        remove_port.extend(remove_port_temp)
-        # print(remove_port)
-    if args.ip:
-        port_list=[]
-        if  args.port :
-            port_list = get_port_list(args.port)
-        if not args.port:
-            port_list = diff_of_two_list(all_port_list,remove_port)
-        ip_list =  get_ip_d_list(args.ip)
-        if args.threads:
-            scan(ip_list,port_list,int(args.threads),timeout)
-        else:
-            scan(ip_list,port_list,400,timeout)
-        # for i in ip_list:
-        #     scan(i, port_list, threadNum)
-
-    if args.file:
-        port_list=[]
-        if  args.port :
-            port_list = get_port_list(args.port)
-        if not args.port:
-            port_list = diff_of_two_list(all_port_list,remove_port)
-        ip_list =  get_ip_f_list(args.file)
-        if args.threads:
-            scan(ip_list,port_list,int(args.threads),timeout)
-        else:
-            scan(ip_list, port_list, 400,timeout)
 
 
