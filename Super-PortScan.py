@@ -526,10 +526,10 @@ def portScanner(portQueue,timeout,pbar):
                             url_address = 'https://'+host+':'+port
                         else:
                             url_address = 'http://'+host+':'+port
-                        # html = requests.get(url_address,verify = False)
-                        # html.encoding = html.apparent_encoding
-                        # print (html)
-                        re_data = re.search(r'<title>(.+)</title>',Banner,re.I|re.M)
+                        html = requests.get(url_address,verify = False)
+                        html.encoding = html.apparent_encoding
+                        # print (html.text)
+                        re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
                         if re_data:
                             Banner = re_data.group().replace('<title>','').replace('</title>','')
                         else:
