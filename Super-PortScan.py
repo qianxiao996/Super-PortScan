@@ -506,10 +506,8 @@ def portScanner(portQueue,timeout,pbar):
                             url_address = 'http://'+host+':'+port
                         html = requests.get(url_address,verify = False).text
                         # print (html)
-                        Banner=re.search('<title>(.+)</title>',html).group().replace('<title>','').replace('</title>','')
+                        Banner=re.search('<title>(.+)</title>',html.lower()).group().replace('<title>','').replace('</title>','')
                         # print (title)
-                        
-
                     except:
                         Banner =Banner
 
@@ -637,12 +635,12 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address='
     lock.acquire()  #加锁
     if zhuangtai=='Opened':
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
-        tqdm.write(Fore.GREEN+'[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+        tqdm.write(Fore.GREEN+'[+] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
         6, ' ') + '\t\t' + Banner.ljust(20, ' '))
     else:
         Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
 
-        tqdm.write(Fore.BLACK+'[*] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
+        tqdm.write(Fore.BLACK+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
             6, ' ') + '\t\t' + Banner.ljust(20, ' '))
     try:
         if out_txt!='':
@@ -763,7 +761,7 @@ def  scan(ip_list,port_list,threadNum,timeout):
 
 @click.command()
 
-@click.version_option(version='1.3.2')
+@click.version_option(version='1.3.3')
 @click.option("-i", "--ip",help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
@@ -796,11 +794,10 @@ def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,thre
             timeout=int(timeout)
         else:
             timeout=1
-        
+        global all_remove_port
         if remove_port:
             remove_port_temp = (remove_port).split(",")
             # print(type(remove_port_temp))
-            global all_remove_port
             all_remove_port.extend(remove_port_temp)
             # print(remove_port)
         if ip:
@@ -838,7 +835,6 @@ def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,thre
 
 if __name__ == '__main__':
     init(autoreset=True)    #  初始化，并且设置颜色设置自动恢复
-    # sys.argv=["-i","222"]
     print(Fore.CYAN+'''
    _____                         _____           _    _____   
   / ____|                       |  __ \         | |  / ____|                
@@ -855,12 +851,11 @@ if __name__ == '__main__':
     out_html=''
     all_remove_port=[] #排除的端口
     lock = threading.Lock() #申请一个锁
-    # out_html = '111.html'
     # scan(['blog.qianxiao996.cn','129.204.113.202'], [443,80,8081], 22,1)
     # exit()
     all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
     click_main()
-
+    # scan(["129.204.113.4"], [5985], 50, 1)
     # exit()
     # parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
     # group = parser.add_mutually_exclusive_group()
