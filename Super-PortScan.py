@@ -355,9 +355,17 @@ def startPing(ip_str):
 #得到-d中的ip列表
 def get_ip_d_list(ip):
     ip_list=[]
-    if '/' in ip:
+    #127.0.0.1/24匹配
+    remath_1 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2]\d|3[0-2])$'
+    re_result1 =  re.search(remath_1,ip)
+    #127.0.0.1-222匹配
+    remath_2 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\-(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])$'
+    re_result2 =  re.search(remath_2,ip)
+    # remath_3 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+    # re_result3 =  re.search(remath_3,ip)
+    if re_result1:
         try:
-            ipNet = ipaddr.IPv4Network(ip)
+            ipNet = ipaddr.IPv4Network(re_result1.group())
             for ip in ipNet:
                 ip_list.append(str(ip))
                 # print(isinstance(ip, ipaddr.IPv4Address))
@@ -370,9 +378,11 @@ def get_ip_d_list(ip):
         # ip = ip.replace('/24','')
         # for i in range(1,255):
         #     ip_list.append(ip[:ip.rfind('.')]+'.'+str(i))
-    elif '-' in ip:
-        ip_start = ip.split('.')[-1].split('-')[0]
-        ip_end = ip.split('.')[-1].split('-')[1]
+    elif re_result2:
+        ip_addr = re_result2.group()
+        ip_start = ip_addr.split('.')[-1].split('-')[0]
+        ip_end = ip_addr.split('.')[-1].split('-')[1]
+        # print(ip_start,ip_end)
         if int(ip_start)>int(ip_end):
             numff =ip_start
             ip_start= ip_end
@@ -381,7 +391,7 @@ def get_ip_d_list(ip):
             ip_list.append(ip[:ip.rfind('.')] + '.' + str(i))
     else:
         ip_list = ip.split()
-
+        # ip_list.append(re_result3.group())
     # 列表去重
     all_list = []
     for i in ip_list:
@@ -677,7 +687,6 @@ def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address='
             f2.close()
     except:
         print(Fore.RED+'文件写入出错！')
-
     lock.release()  #执行完 ，释放锁
     #创建线程
 def createThread(num,portQueue,timeout,threads,pbar):
@@ -686,10 +695,6 @@ def createThread(num,portQueue,timeout,threads,pbar):
         i= threading.Thread(target=portScanner, args=(portQueue,timeout,pbar))
         threads.append(i)
 def  scan(ip_list,port_list,threadNum,timeout):
-    # print(get_server(str(22)))
-    # print(port_list)
-    # ip_list=['192.168.1.1','192.168.1.2']
-    # port_list = [80, 25, 110]
     if(threadNum<len(port_list)):
         threadNum=threadNum
     else:
@@ -707,7 +712,7 @@ def  scan(ip_list,port_list,threadNum,timeout):
                                                                                                                         ' ') + '\t\t' + 'Service'.ljust(
                         6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
                     threads=[]#线程列表
-                    portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
+                    portQueue = queue.Queue()  
                     portQueue.queue.clear()
                     for i in port_list:
                         # print(port_list)
@@ -733,9 +738,7 @@ def  scan(ip_list,port_list,threadNum,timeout):
                     if(startPing(ip)):
                         # pbar.update(1)
                         tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Up!')
-                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
-                                                                                                                        ' ') + '\t\t' + 'Service'.ljust(
-                            6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
                         threads=[]#线程列表
                         portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
                         portQueue.queue.clear()
@@ -774,7 +777,7 @@ def  scan(ip_list,port_list,threadNum,timeout):
 
 @click.command()
 
-@click.version_option(version='1.3.4')
+@click.version_option(version='1.3.5')
 @click.option("-i", "--ip",help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
@@ -843,7 +846,8 @@ def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,thre
             else:
                 scan(ip_list, port_list, 400,timeout)
 
-    except:
+    except Exception as e:
+        print(e)
         print(Fore.RED+'参数输入错误！')
 
 if __name__ == '__main__':
@@ -868,7 +872,7 @@ if __name__ == '__main__':
     # exit()
     all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
     click_main()
-    # scan(["129.204.113.202"], [80], 50, 1)
+    # scan(["127.0.0.1-222"], [80], 50, 1)
     # exit()
     # parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
     # group = parser.add_mutually_exclusive_group()
