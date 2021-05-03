@@ -7,6 +7,7 @@ import re
 from colorama import init, Fore
 import click
 from tqdm import tqdm
+import ipaddr
 requests.packages.urllib3.disable_warnings()
 
 
@@ -354,10 +355,21 @@ def startPing(ip_str):
 #得到-d中的ip列表
 def get_ip_d_list(ip):
     ip_list=[]
-    if '/24' in ip:
-        ip = ip.replace('/24','')
-        for i in range(1,255):
-            ip_list.append(ip[:ip.rfind('.')]+'.'+str(i))
+    if '/' in ip:
+        try:
+            ipNet = ipaddr.IPv4Network(ip)
+            for ip in ipNet:
+                ip_list.append(str(ip))
+                # print(isinstance(ip, ipaddr.IPv4Address))
+                # print (str(ip))
+            ip_list = ip_list[1:-1]
+        except:
+            print(Fore.RED+'Error:IP段设置错误！')
+            return
+        # print(ip_list)
+        # ip = ip.replace('/24','')
+        # for i in range(1,255):
+        #     ip_list.append(ip[:ip.rfind('.')]+'.'+str(i))
     elif '-' in ip:
         ip_start = ip.split('.')[-1].split('-')[0]
         ip_end = ip.split('.')[-1].split('-')[1]
@@ -762,7 +774,7 @@ def  scan(ip_list,port_list,threadNum,timeout):
 
 @click.command()
 
-@click.version_option(version='1.3.3')
+@click.version_option(version='1.3.4')
 @click.option("-i", "--ip",help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
