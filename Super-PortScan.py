@@ -9,6 +9,26 @@ import click
 from tqdm import tqdm
 import ipaddr
 requests.packages.urllib3.disable_warnings()
+init(autoreset=True)    #  初始化，并且设置颜色设置自动恢复
+# print(Fore.CYAN+'''
+# _____                         _____           _    _____   
+# / ____|                       |  __ \         | |  / ____|                
+# | (___  _   _ _ __   ___ _ __  | |__) |__  _ __| |_| (___   ___ __ _ _ __  
+# \___ \| | | | '_ \ / _ \ '__| |  ___/ _ \| '__| __|\___ \ / __/ _` | '_ \ 
+# ____) | |_| | |_) |  __/ |    | |  | (_) | |  | |_ ____) | (_| (_| | | | |
+# |_____/ \__,_| .__/ \___|_|    |_|   \___/|_|   \__|_____/ \___\__,_|_| |_|
+#         | |                                                           
+#         |_|                                       
+#                 github: https://github.com/qianxiao996/Super-PortScan''')
+flag = 0  # 是否显示过程
+jp_flag=0 #跳过主机发现
+out_txt=''#输出txt文件
+out_html=''
+all_remove_port=[] #排除的端口
+lock = threading.Lock() #申请一个锁
+# scan(['blog.qianxiao996.cn','129.204.113.202'], [443,80,8081], 22,1)
+# exit()
+all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
 
 
 signs_rules=[
@@ -328,462 +348,510 @@ html_head='''
         
 </script>
 '''
+class Portscan:
+    def chuli_canshu(self,ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
+        try: 
+            if verbose:
+                global  flag
+                flag=1
+            if jump_port:
+                global jp_flag
+                jp_flag=1
+            if txt:
+                global  out_txt
+                out_txt=txt
+            if html:
+                global  out_html
+                out_html=html
 
-def get_system():
-    if os.name == 'nt':
-        return 'n'
-    else:
-        return 'c'
-#探测主机存活
-def startPing(ip_str):
-    # print(ip_str)
-    a=0
-    shell = ['ping','-{op}'.format(op=get_system()),'2',ip_str]
-    output = os.popen(' '.join(shell)).readlines()
-    for line in list(output):
-        if not line:
-            continue
-        if str(line).upper().find('TTL') >= 0:
-            # print("ip: %s is ok " % ip_str)
-            a=1
-            return a
+            if timeout:
+                timeout=int(timeout)
+            else:
+                timeout=1
+            global all_remove_port
+            if remove_port:
+                remove_port_temp = (remove_port).split(",")
+                # print(type(remove_port_temp))
+                all_remove_port.extend(remove_port_temp)
+                # print(remove_port)
+            port_list=[]
+            if  port :
+                port_list = self.get_port_list(port)
+            elif port_file:
+                port_list = self.get_port_file_list(port_file)
+            else:
+                port_list = self.diff_of_two_list(all_port_list,all_remove_port)
+            if ip:
+                ip_list =  self.get_ip_d_list(ip)
+            elif file:
+                ip_list =  self.get_ip_f_list(file)
+            self.scan(ip_list,port_list,int(threads),timeout)
+
+        except Exception as e:
+            print(e)
+            print(Fore.RED+'参数输入错误！')
+    def get_system(self):
+        if os.name == 'nt':
+            return 'n'
         else:
-            continue
-    return a
+            return 'c'
+    #探测主机存活
+    def startPing(self,ip_str):
+        # print(ip_str)
+        a=0
+        shell = ['ping','-{op}'.format(op=self.get_system()),'2',ip_str]
+        output = os.popen(' '.join(shell)).readlines()
+        for line in list(output):
+            if not line:
+                continue
+            if str(line).upper().find('TTL') >= 0:
+                # print("ip: %s is ok " % ip_str)
+                a=1
+                return a
+            else:
+                continue
+        return a
 
 
-#得到-d中的ip列表
-def get_ip_d_list(ip):
-    ip_list=[]
-    #127.0.0.1/24匹配
-    remath_1 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2]\d|3[0-2])$'
-    re_result1 =  re.search(remath_1,ip,re.I|re.M)
-    #127.0.0.1-222匹配
-    remath_2 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\-(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])$'
-    re_result2 =  re.search(remath_2,ip,re.I|re.M)
-    # remath_3 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
-    # re_result3 =  re.search(remath_3,ip)
-    if re_result1:
+    #得到-d中的ip列表
+    def get_ip_d_list(self,ip):
+        ip_list=[]
+        #127.0.0.1/24匹配
+        remath_1 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2]\d|3[0-2])$'
+        re_result1 =  re.search(remath_1,ip,re.I|re.M)
+        #127.0.0.1-222匹配
+        remath_2 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\-(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]?[0-9])$'
+        re_result2 =  re.search(remath_2,ip,re.I|re.M)
+        # remath_3 = r'^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+        # re_result3 =  re.search(remath_3,ip)
+        if re_result1:
+            try:
+                ipNet = ipaddr.IPv4Network(re_result1.group())
+                for ip in ipNet:
+                    ip_list.append(str(ip))
+                    # print(isinstance(ip, ipaddr.IPv4Address))
+                    # print (str(ip))
+                ip_list = ip_list[1:-1]
+            except:
+                print(Fore.RED+'Error:IP段设置错误！')
+                return
+            # print(ip_list)
+            # ip = ip.replace('/24','')
+            # for i in range(1,255):
+            #     ip_list.append(ip[:ip.rfind('.')]+'.'+str(i))
+        elif re_result2:
+            ip_addr = re_result2.group()
+            ip_start = ip_addr.split('.')[-1].split('-')[0]
+            ip_end = ip_addr.split('.')[-1].split('-')[1]
+            # print(ip_start,ip_end)
+            if int(ip_start)>int(ip_end):
+                numff =ip_start
+                ip_start= ip_end
+                ip_end = numff
+            for i in range(int(ip_start), int(ip_end)+1):
+                ip_list.append(ip[:ip.rfind('.')] + '.' + str(i))
+        else:
+            ip_list = ip.split()
+            # ip_list.append(re_result3.group())
+        # 列表去重
+        all_list = []
+        for i in ip_list:
+            if i not in all_list:
+                all_list.append(i)
+        return list(filter(None, all_list))  # 去除 none 和 空字符
+    #得到文件中的ip列表
+    def get_ip_f_list(self,file):
+        all_list =[]
+        if os.path.exists(file):
+            try:
+                file = open(file,'r',encoding= 'utf-8')
+                for line in file:
+                    all_list =all_list+  self.get_ip_d_list(line)
+                file.close()
+                all_list2 = []
+                for i in all_list:
+                    if i not in all_list2:
+                        all_list2.append(i)
+                return list(filter(None, all_list2))  # 去除 none 和 空字符
+            except:
+                print(Fore.RED+'Error:文件读取错误！')
+                exit()
+        else:
+            print(Fore.RED+'Error:文件不存在')
+            exit()
+    #得到端口列表
+    def get_port_list(self,port):
+        port_list=[]
+        if ',' in port and '-' not in port:
+            port_list = port.strip().split(',')
+        elif ',' not in port and '-' in port:
+            port_start = port.split('-')[0]
+            port_end = port.split('-')[1]
+            if int(port_start)>int(port_end):
+                numff =port_start
+                port_start= port_end
+                port_end = numff
+            for i in range(int(port_start), int(port_end)+1):
+                port_list.append(str(i).strip())
+        elif ',' in port and '-' in port:
+            port_list = port.split(',')
+            for i in port_list:
+                port_list.remove(i)
+                port_start = i.split('-')[0]
+                port_end = i.split('-')[1]
+                if int(port_start) > int(port_end):
+                    numff = port_start
+                    port_start = port_end
+                    port_end = numff
+                for i in range(int(port_start), int(port_end) + 1):
+                    port_list.append(str(i).strip())
+        else:
+            port_list = port.split()
+        for i in port_list:
+            if  int(i) > 65535:
+                port_list.remove(i)
+        port_list = self.diff_of_two_list(port_list,all_remove_port)
+        # print(port_list)
+        return port_list
+    def get_port_file_list(self,port_file_path):
+            
         try:
-            ipNet = ipaddr.IPv4Network(re_result1.group())
-            for ip in ipNet:
-                ip_list.append(str(ip))
-                # print(isinstance(ip, ipaddr.IPv4Address))
-                # print (str(ip))
-            ip_list = ip_list[1:-1]
-        except:
-            print(Fore.RED+'Error:IP段设置错误！')
-            return
-        # print(ip_list)
-        # ip = ip.replace('/24','')
-        # for i in range(1,255):
-        #     ip_list.append(ip[:ip.rfind('.')]+'.'+str(i))
-    elif re_result2:
-        ip_addr = re_result2.group()
-        ip_start = ip_addr.split('.')[-1].split('-')[0]
-        ip_end = ip_addr.split('.')[-1].split('-')[1]
-        # print(ip_start,ip_end)
-        if int(ip_start)>int(ip_end):
-            numff =ip_start
-            ip_start= ip_end
-            ip_end = numff
-        for i in range(int(ip_start), int(ip_end)+1):
-            ip_list.append(ip[:ip.rfind('.')] + '.' + str(i))
-    else:
-        ip_list = ip.split()
-        # ip_list.append(re_result3.group())
-    # 列表去重
-    all_list = []
-    for i in ip_list:
-        if i not in all_list:
-            all_list.append(i)
-    return list(filter(None, all_list))  # 去除 none 和 空字符
-#得到文件中的ip列表
-def get_ip_f_list(file):
-    all_list =[]
-    if os.path.exists(file):
-        try:
-            file = open(file,'r',encoding= 'utf-8')
-            for line in file:
-                all_list =all_list+ get_ip_d_list(line)
-            file.close()
-            all_list2 = []
-            for i in all_list:
-                if i not in all_list2:
-                    all_list2.append(i)
-            return list(filter(None, all_list2))  # 去除 none 和 空字符
+            if os.path.exists(port_file_path):
+                file_cls = open(port_file_path,'r',encoding= 'utf-8')
+                data = file_cls.read()
+                try:
+                    port_list = data.split(',')
+                    for i in port_list:
+                        try:    
+                            if  int(i) > 65535:
+                                port_list.remove(i)
+                        except:
+                            port_list.remove(i)
+                except:
+                    print(Fore.RED+'Error:端口文件读取错误！')
+                port_list = self.diff_of_two_list(port_list,all_remove_port)
+                return port_list
+            else:
+                print(Fore.RED+'Error:端口文件不存在！')
         except:
             print(Fore.RED+'Error:文件读取错误！')
-            exit()
-    else:
-        print(Fore.RED+'Error:文件不存在')
-        exit()
-#得到端口列表
-def get_port_list(port):
-    port_list=[]
-    if ',' in port and '-' not in port:
-        port_list = port.strip().split(',')
-    elif ',' not in port and '-' in port:
-        port_start = port.split('-')[0]
-        port_end = port.split('-')[1]
-        if int(port_start)>int(port_end):
-            numff =port_start
-            port_start= port_end
-            port_end = numff
-        for i in range(int(port_start), int(port_end)+1):
-            port_list.append(str(i).strip())
-    elif ',' in port and '-' in port:
-        port_list = port.split(',')
-        for i in port_list:
-            port_list.remove(i)
-            port_start = i.split('-')[0]
-            port_end = i.split('-')[1]
-            if int(port_start) > int(port_end):
-                numff = port_start
-                port_start = port_end
-                port_end = numff
-            for i in range(int(port_start), int(port_end) + 1):
-                port_list.append(str(i).strip())
-    else:
-        port_list = port.split()
-    for i in port_list:
-        if  int(i) > 65535:
-            port_list.remove(i)
-    port_list = diff_of_two_list(port_list,all_remove_port)
-    # print(port_list)
-    return port_list
-def get_port_file_list(port_file_path):
-        
-    try:
-        if os.path.exists(port_file_path):
-            file_cls = open(port_file_path,'r',encoding= 'utf-8')
-            data = file_cls.read()
+
+    #从list1排除list2
+    def diff_of_two_list(self,list1,list2):
+        for value in list2:
             try:
-                port_list = data.split(',')
-                for i in port_list:
-                    try:    
-                        if  int(i) > 65535:
-                            port_list.remove(i)
-                    except:
-                        port_list.remove(i)
-            except:
-                print(Fore.RED+'Error:端口文件读取错误！')
-            port_list = diff_of_two_list(port_list,all_remove_port)
-            return port_list
-        else:
-            print(Fore.RED+'Error:端口文件不存在！')
-    except:
-        print(Fore.RED+'Error:文件读取错误！')
-
-#从list1排除list2
-def diff_of_two_list(list1,list2):
-    for value in list2:
-        try:
-            value = int(value)
-            if value in list1:
-                list1.remove(value)
-        except:
-            pass
-    return list1
-        # print(type(list1[0]))
-        # print(type(value))
-    # return list(set(list1)-set(list2))
-
-def portScanner(portQueue,timeout,pbar):
-    while True:
-        if portQueue.empty():  # 队列空就结束
-            break
-        ip_port = portQueue.get()  # 从队列中取出
-        host = ip_port.split(':')[0]
-        port = ip_port.split(':')[1]
-        pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
-        # print(host,port)
-        try:
-            tcp = socket(AF_INET, SOCK_STREAM)
-            tcp.settimeout(int(timeout))  # 如果设置太小，检测不精确，设置太大，检测太慢
-            # print(host,port)
-            result = tcp.connect_ex((host, int(port)))  # 效率比connect高，成功时返回0，失败时返回错误码
-            # print(port+"success")
-            if result == 0:
-                url_address=''
-                tcp.send("test".encode(encoding='utf-8'))
-                try:
-                    Banner = tcp.recv(100).decode("raw_unicode_escape")
-                    service=matchbanner(Banner,signs_rules)
-                    if service=="Unknown":
-                        return_Data  = scanservice(host, port,timeout)
-                        service = return_Data[0]
-                        Banner =return_Data[1]
-                    # print(Banner)
-                    # print(service)
-                except:
-                    return_Data = scanservice(host, port, timeout)
-                    service = return_Data[0]
-                    Banner = return_Data[1]
-                if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
-                    try:
-                        if  service =='https' or  service =='HTTPS':
-                            url_address = 'https://'+host+':'+port
-                        else:
-                            url_address = 'http://'+host+':'+port
-                        html = requests.get(url_address,verify = False)
-                        html.encoding = html.apparent_encoding
-                        # print (html.text)
-                        re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
-                        if re_data:
-                            Banner = re_data.group().replace('<title>','').replace('</title>','')
-                        else:
-                            Banner=Banner[:100]
-                        # print (title)
-                    except:
-                        Banner = Banner[:100]
-                        # Banner =Banner
-
-                # Banner=''
-                out_result(host,port,'Opened',Banner,service,url_address)
-            else:
-                # print(flag)
-                if  flag:
-                    out_result(host,port,'Close',"None",'Unknown','')
-        except:
-            if  flag:
-                out_result(host, port, 'Close', "None", 'Unknown','')
-            continue
-        finally:
-            try:
-                tcp.close()
+                value = int(value)
+                if value in list1:
+                    list1.remove(value)
             except:
                 pass
-        pbar.update(1)
-def scanservice(host,port,timeout):
-    return_result =''
-    service='Unknown'
-    for probe in PROBES:
-        try:
-            sd = socket(AF_INET, SOCK_STREAM)
-            sd.settimeout(int(timeout))
-            sd.connect((host, int(port)))
-            sd.send(probe.encode(encoding='utf-8'))
-        except:
-            continue
-        try:
-            result = sd.recv(1024).decode("raw_unicode_escape")
-            # print(result)
-            if ("<title>400 Bad Request</title>"in result and  "https" in result ) or ("<title>400 Bad Request</title>"in result and  "HTTPS" in result ):
-                service ='https'
-                return_result =result
+        return list1
+            # print(type(list1[0]))
+            # print(type(value))
+        # return list(set(list1)-set(list2))
+
+    def portScanner(self,portQueue,timeout,pbar):
+        while True:
+            if portQueue.empty():  # 队列空就结束
                 break
-            service = matchbanner(result, signs_rules)
-            if service != 'Unknown':
-                return_result =result
-                break
+            ip_port = portQueue.get()  # 从队列中取出
+            host = ip_port.split(':')[0]
+            port = ip_port.split(':')[1]
+            pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
+            # print(host,port)
+            try:
+                tcp = socket(AF_INET, SOCK_STREAM)
+                tcp.settimeout(int(timeout))  # 如果设置太小，检测不精确，设置太大，检测太慢
+                # print(host,port)
+                result = tcp.connect_ex((host, int(port)))  # 效率比connect高，成功时返回0，失败时返回错误码
+                # print(port+"success")
+                if result == 0:
+                    url_address=''
+                    tcp.send("test".encode(encoding='utf-8'))
+                    try:
+                        Banner = tcp.recv(100).decode("raw_unicode_escape")
+                        service=self.matchbanner(Banner,signs_rules)
+                        if service=="Unknown":
+                            return_Data  = self.scanservice(host, port,timeout)
+                            service = return_Data[0]
+                            Banner =return_Data[1]
+                        # print(Banner)
+                        # print(service)
+                    except:
+                        return_Data = self.scanservice(host, port, timeout)
+                        service = return_Data[0]
+                        Banner = return_Data[1]
+                    if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
+                        try:
+                            if  service =='https' or  service =='HTTPS':
+                                url_address = 'https://'+host+':'+port
+                            else:
+                                url_address = 'http://'+host+':'+port
+                            html = requests.get(url_address,verify = False)
+                            if not html:
+                                html = requests.post(url_address,verify = False)
+                            html.encoding = html.apparent_encoding
+                            # print (html.text)
+                            re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
+                            if re_data:
+                                Banner = re_data.group().replace('<title>','').replace('</title>','')
+                            # print(html.text)
+                            if  Banner=="Unknown":
+                                if "404 Not Found" in html.text:
+                                    Banner="404 Not Found"
+                                elif "Page Not Found" in html.text:
+                                    Banner="Page Not Found"
+                                else:
+                                    Banner=html.text[:100]
+                            # print (title)
+                        except:
+                            Banner = html.text[:100]
+                            # Banner =Banner
 
-        except:
-            continue
-    if service!="Unknown":
-        pass
-    else:
-        service = get_server(str(port))
-    return service,return_result
-
-def get_server(port):
-    SERVER = {
-        'FTP': '21',
-        'SSH': '22',
-        'Telnet': '23',
-        'SMTP': '25',
-        'DNS': '53',
-        'DHCP': '68',
-        'HTTP': '80',
-        'TFTP': '69',
-        'HTTP': '8080',
-        'POP3': '995',
-        'NetBIOS': '139',
-        'IMAP': '143',
-        'HTTPS': '443',
-        'SNMP': '161',
-        'LDAP': '489',
-        'SMB': '445',
-        'SMTPS': '465',
-        'Linux R RPE': '512',
-        'Linux R RLT': '513',
-        'Linux R cmd': '514',
-        'Rsync': '873',
-        'IMAPS': '993',
-        'Proxy': '1080',
-        'JavaRMI': '1099',
-        'Lotus': '1352',
-        'MSSQL': '1433',
-        'MSSQL': '1434',
-        'Oracle': '1521',
-        'PPTP': '1723',
-        'cPanel': '2082',
-        'CPanel': '2083',
-        'Zookeeper': '2181',
-        'Docker': '2375',
-        'Zebra': '2604',
-        'MySQL': '3306',
-        'Kangle': '3312',
-        'RDP': '3389',
-        'SVN': '3690',
-        'Rundeck': '4440',
-        'GlassFish': '4848',
-        'PostgreSql': '5432',
-        'PcAnywhere': '5632',
-        'VNC': '5900',
-        'CouchDB': '5984',
-        'varnish': '6082',
-        'Redis': '6379',
-        'Weblogic': '9001',
-        'Kloxo': '7778',
-        'Zabbix': '8069',
-        'RouterOS': '8291',
-        'Elasticsearch': '9200',
-        'Elasticsearch': '9300',
-        'Zabbix': '10050',
-        'Zabbix': '10051',
-        'Memcached': '11211',
-        'MongoDB': '27017',
-        'MongoDB': '28017',
-        'Hadoop': '50070'
-    }
-    for k, v in SERVER.items():
-        if v == port:
-            return k
-    return 'Unknown'
-
-def matchbanner(banner,slist):
-    for item in slist:
-        item = item.split('|')
-        p=re.compile(item[1])
-        if p.search(banner)!=None:
-            return item[0]
-    return 'Unknown'
-def out_result(host,port,zhuangtai,Banner='None',service='Unknown',url_address=''):
-    lock.acquire()  #加锁
-    if zhuangtai=='Opened':
-        Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
-        tqdm.write(Fore.GREEN+'[+] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
-        6, ' ') + '\t\t' + Banner.ljust(20, ' '))
-    else:
-        Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
-
-        tqdm.write(Fore.BLACK+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
-            6, ' ') + '\t\t' + Banner.ljust(20, ' '))
-    try:
-        if out_txt!='':
-            f=open(out_txt,"a")
-            f.write(host+' '+port+' opened '+service+'\n')
-            f.close()
-        if out_html !='':
-            # print(Banner)
-            Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
-            # print(Banner)
-            # Banner = Banner.strip()
-            out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
-
-            if os.path.exists(out_html):
-                f2 = open(out_html, "a")
-                f2.write(out_str)
-            else:
-                f2 = open(out_html, "a")
-                f2.write(html_head)
-                f2.write(out_str)
-            f2.close()
-    except:
-        print(Fore.RED+'文件写入出错！')
-    lock.release()  #执行完 ，释放锁
-    #创建线程
-def createThread(num,portQueue,timeout,threads,pbar):
-    # portScanner(portQueue,timeout,pbar)
-    for i in range(num):
-        i= threading.Thread(target=portScanner, args=(portQueue,timeout,pbar))
-        threads.append(i)
-def  scan(ip_list,port_list,threadNum,timeout):
-    if(threadNum<len(port_list)):
-        threadNum=threadNum
-    else:
-        threadNum =len(port_list)
-    print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(ip_list),len(port_list),len(all_remove_port),threadNum))
-    print(Fore.YELLOW+'[*] The Scan is Start')
-    count = len(port_list)*len(ip_list)
-    try:
-        with tqdm(total=count,ncols=100) as pbar:
-            for ip in ip_list:
-                ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
-                if(jp_flag==1):
-                    tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Start!')
-                    tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
-                                                                                                                        ' ') + '\t\t' + 'Service'.ljust(
-                        6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
-                    threads=[]#线程列表
-                    portQueue = queue.Queue()  
-                    portQueue.queue.clear()
-                    for i in port_list:
-                        # print(port_list)
-                        portQueue.put(ip+':'+str(i))
-                    # print(threadNum)
-                    # print(portQueue.qsize())
-                    # print(threadNum)
-                    createThread(threadNum, portQueue,timeout,threads,pbar)
-                    for t in threads:#启动线程
-                        t.start()
-                    for t in threads:#阻塞线程，等待线程结束
-                        # print(len(threads))
-                        # if len(threads)==0:
-                        #     # exit()
-                        #     time.sleep(5)
-                        #     break
-                        t.join()
-                        threads=[]
-                    tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
-
-                    #
+                    # Banner=''
+                    self.out_result(host,port,'Opened',Banner,service,url_address)
                 else:
-                    if(startPing(ip)):
-                        # pbar.update(1)
-                        tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Up!')
-                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+                    # print(flag)
+                    if  flag:
+                        self.out_result(host,port,'Close',"None",'Unknown','')
+            except:
+                if  flag:
+                    self.out_result(host, port, 'Close', "None", 'Unknown','')
+                continue
+            finally:
+                try:
+                    tcp.close()
+                except:
+                    pass
+            pbar.update(1)
+    def scanservice(self,host,port,timeout):
+        return_result =''
+        service='Unknown'
+        for probe in PROBES:
+            try:
+                sd = socket(AF_INET, SOCK_STREAM)
+                sd.settimeout(int(timeout))
+                sd.connect((host, int(port)))
+                sd.send(probe.encode(encoding='utf-8'))
+            except:
+                continue
+            try:
+                result = sd.recv(1024).decode("raw_unicode_escape")
+                # print(result)
+                if ("<title>400 Bad Request</title>"in result and  "https" in result ) or ("<title>400 Bad Request</title>"in result and  "HTTPS" in result ):
+                    service ='https'
+                    return_result ="Unknown"
+                    break
+                service = self.matchbanner(result, signs_rules)
+                if service != 'Unknown':
+                    return_result ="Unknown"
+                    break
+
+            except:
+                continue
+        if service!="Unknown":
+            pass
+        else:
+            service = self.get_server(str(port))
+        return service,return_result
+
+    def get_server(self,port):
+        SERVER = {
+            'FTP': '21',
+            'SSH': '22',
+            'Telnet': '23',
+            'SMTP': '25',
+            'DNS': '53',
+            'DHCP': '68',
+            'HTTP': '80',
+            'TFTP': '69',
+            'HTTP': '8080',
+            'POP3': '995',
+            'NetBIOS': '139',
+            'IMAP': '143',
+            'HTTPS': '443',
+            'SNMP': '161',
+            'LDAP': '489',
+            'SMB': '445',
+            'SMTPS': '465',
+            'Linux R RPE': '512',
+            'Linux R RLT': '513',
+            'Linux R cmd': '514',
+            'Rsync': '873',
+            'IMAPS': '993',
+            'Proxy': '1080',
+            'JavaRMI': '1099',
+            'Lotus': '1352',
+            'MSSQL': '1433',
+            'MSSQL': '1434',
+            'Oracle': '1521',
+            'PPTP': '1723',
+            'cPanel': '2082',
+            'CPanel': '2083',
+            'Zookeeper': '2181',
+            'Docker': '2375',
+            'Zebra': '2604',
+            'MySQL': '3306',
+            'Kangle': '3312',
+            'RDP': '3389',
+            'SVN': '3690',
+            'Rundeck': '4440',
+            'GlassFish': '4848',
+            'PostgreSql': '5432',
+            'PcAnywhere': '5632',
+            'VNC': '5900',
+            'CouchDB': '5984',
+            'varnish': '6082',
+            'Redis': '6379',
+            'Weblogic': '9001',
+            'Kloxo': '7778',
+            'Zabbix': '8069',
+            'RouterOS': '8291',
+            'Elasticsearch': '9200',
+            'Elasticsearch': '9300',
+            'Zabbix': '10050',
+            'Zabbix': '10051',
+            'Memcached': '11211',
+            'MongoDB': '27017',
+            'MongoDB': '28017',
+            'Hadoop': '50070'
+        }
+        for k, v in SERVER.items():
+            if v == port:
+                return k
+        return 'Unknown'
+
+    def matchbanner(self,banner,slist):
+        for item in slist:
+            item = item.split('|')
+            p=re.compile(item[1])
+            if p.search(banner)!=None:
+                return item[0]
+        return 'Unknown'
+    def out_result(self,host,port,zhuangtai,Banner='None',service='Unknown',url_address=''):
+        lock.acquire()  #加锁
+        if zhuangtai=='Opened':
+            Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+            tqdm.write(Fore.GREEN+'[+] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
+            6, ' ') + '\t\t' + Banner.ljust(20, ' '))
+        else:
+            Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+
+            tqdm.write(Fore.BLACK+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
+                6, ' ') + '\t\t' + Banner.ljust(20, ' '))
+        try:
+            if out_txt!='':
+                f=open(out_txt,"a")
+                f.write(host+' '+port+' opened '+service+'\n')
+                f.close()
+            if out_html !='':
+                # print(Banner)
+                Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
+                # print(Banner)
+                # Banner = Banner.strip()
+                out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
+
+                if os.path.exists(out_html):
+                    f2 = open(out_html, "a")
+                    f2.write(out_str)
+                else:
+                    f2 = open(out_html, "a")
+                    f2.write(html_head)
+                    f2.write(out_str)
+                f2.close()
+        except:
+            print(Fore.RED+'文件写入出错！')
+        lock.release()  #执行完 ，释放锁
+        #创建线程
+    def createThread(self,num,portQueue,timeout,threads,pbar):
+        # self.portScanner(portQueue,timeout,pbar)
+        for i in range(num):
+            i= threading.Thread(target=self.portScanner, args=(portQueue,timeout,pbar))
+            threads.append(i)
+    def  scan(self,ip_list,port_list,threadNum,timeout):
+        if(threadNum<len(port_list)):
+            threadNum=threadNum
+        else:
+            threadNum =len(port_list)
+        print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(ip_list),len(port_list),len(all_remove_port),threadNum))
+        print(Fore.YELLOW+'[*] The Scan is Start')
+        count = len(port_list)*len(ip_list)
+        try:
+            with tqdm(total=count,ncols=100) as pbar:
+                for ip in ip_list:
+                    ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
+                    if(jp_flag==1):
+                        tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Start!')
+                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
+                                                                                                                            ' ') + '\t\t' + 'Service'.ljust(
+                            6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
                         threads=[]#线程列表
-                        portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
+                        portQueue = queue.Queue()  
                         portQueue.queue.clear()
                         for i in port_list:
                             # print(port_list)
                             portQueue.put(ip+':'+str(i))
+                        # print(threadNum)
                         # print(portQueue.qsize())
-                        # print(threadNum)/
-                        createThread(threadNum, portQueue,timeout,threads,pbar)
-                        # print(threads)
+                        # print(threadNum)
+                        self.createThread(threadNum, portQueue,timeout,threads,pbar)
                         for t in threads:#启动线程
                             t.start()
                         for t in threads:#阻塞线程，等待线程结束
+                            # print(len(threads))
                             # if len(threads)==0:
                             #     # exit()
                             #     time.sleep(5)
                             #     break
                             t.join()
-                            threads = []
+                            threads=[]
                         tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
 
-
-                            # tqdm.write('[*] The '+ip+' is complete!')
+                        #
                     else:
-                        pbar.update(len(port_list))
-                        tqdm.write(Fore.BLACK+'[*] '+ip+' is down!')
-                            # pbar.close()
+                        if(self.startPing(ip)):
+                            # pbar.update(1)
+                            tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Up!')
+                            tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+                            threads=[]#线程列表
+                            portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
+                            portQueue.queue.clear()
+                            for i in port_list:
+                                # print(port_list)
+                                portQueue.put(ip+':'+str(i))
+                            # print(portQueue.qsize())
+                            # print(threadNum)/
+                            self.createThread(threadNum, portQueue,timeout,threads,pbar)
+                            # print(threads)
+                            for t in threads:#启动线程
+                                t.start()
+                            for t in threads:#阻塞线程，等待线程结束
+                                # if len(threads)==0:
+                                #     # exit()
+                                #     time.sleep(5)
+                                #     break
+                                t.join()
+                                threads = []
+                            tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
 
-            tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
-            pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
-            pbar.close()
-    except KeyboardInterrupt:
-        print(Fore.RED+"用户中途退出！")
-        exit()
-        pass
+
+                                # tqdm.write('[*] The '+ip+' is complete!')
+                        else:
+                            pbar.update(len(port_list))
+                            tqdm.write(Fore.BLACK+'[*] '+ip+' is down!')
+                                # pbar.close()
+
+                tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
+                pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
+                pbar.close()
+        except KeyboardInterrupt:
+            print(Fore.RED+"用户中途退出！")
+            exit()
+            pass
 
 @click.command()
-
-@click.version_option(version='1.3.5')
-@click.option("-i", "--ip",help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
+@click.version_option(version='1.3.6')
+@click.option("-i", "--ip",help="输入ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
 @click.option("-pf", "--port_file",help="从文件加载端口列表，使用逗号分隔",default='')
@@ -795,69 +863,12 @@ def  scan(ip_list,port_list,threadNum,timeout):
 @click.option("--txt", help="定义输出文本文件",default='')
 @click.option("--html",help="定义输出html文件",default='')
 def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
-    try:
-        # click.echo('%s' % ip)    
-        # args = parser.parse_args()
-        if verbose:
-            global  flag
-            flag=1
-        if jump_port:
-            global jp_flag
-            jp_flag=1
-        if txt:
-            global  out_txt
-            out_txt=txt
-        if html:
-            global  out_html
-            out_html=html
-
-        if timeout:
-            timeout=int(timeout)
-        else:
-            timeout=1
-        global all_remove_port
-        if remove_port:
-            remove_port_temp = (remove_port).split(",")
-            # print(type(remove_port_temp))
-            all_remove_port.extend(remove_port_temp)
-            # print(remove_port)
-        if ip:
-            port_list=[]
-            if  port :
-                port_list = get_port_list(port)
-            elif port_file:
-                port_list = get_port_file_list(port_file)
-            else:
-                port_list = diff_of_two_list(all_port_list,all_remove_port)
-            ip_list =  get_ip_d_list(ip)
-            if threads:
-                scan(ip_list,port_list,int(threads),timeout)
-            else:
-                scan(ip_list,port_list,400,timeout)
-            # for i in ip_list:
-            #     scan(i, port_list, threadNum)
-
-        if file:
-            port_list=[]
-            if port :
-                port_list = get_port_list(port)
-            elif port_file:
-                port_list = get_port_file_list(port_file)
-            else:
-                port_list = diff_of_two_list(all_port_list,all_remove_port)
-            ip_list =  get_ip_f_list(file)
-            if threads:
-                scan(ip_list,port_list,int(threads),timeout)
-            else:
-                scan(ip_list, port_list, 400,timeout)
-
-    except Exception as e:
-        print(e)
-        print(Fore.RED+'参数输入错误！')
+    portscan = Portscan()
+    portscan.chuli_canshu(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html)
+    
 
 if __name__ == '__main__':
-    init(autoreset=True)    #  初始化，并且设置颜色设置自动恢复
-    print(Fore.CYAN+'''
+    click.echo(Fore.CYAN+'''
    _____                         _____           _    _____   
   / ____|                       |  __ \         | |  / ____|                
  | (___  _   _ _ __   ___ _ __  | |__) |__  _ __| |_| (___   ___ __ _ _ __  
@@ -867,31 +878,16 @@ if __name__ == '__main__':
              | |                                                           
              |_|                                       
                        github: https://github.com/qianxiao996/Super-PortScan''')
-    flag = 0  # 是否显示过程
-    jp_flag=0 #跳过主机发现
-    out_txt=''#输出txt文件
-    out_html=''
-    all_remove_port=[] #排除的端口
-    lock = threading.Lock() #申请一个锁
-    # scan(['blog.qianxiao996.cn','129.204.113.202'], [443,80,8081], 22,1)
-    # exit()
-    all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
     click_main()
-    # scan(["192.3.128.15"], [443], 50, 1)
-    # exit()
-    # parser = argparse.ArgumentParser(usage='\n\tpython3 Super-PortScan.py -i 192.168.1.1 -p 80\n\tpython3 Super-PortScan.py -f ip.txt -p 80')
-    # group = parser.add_mutually_exclusive_group()
-    # @click.option("-i", "--ip" ,help="输入一个或一段ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99")
-    # @click.option("-f", "--file",help="从文件加载ip列表")
-    # @click.option("-p", "--port", help="定义扫描的端口，例如:80、80,8080、80-8000")
-    # @click.option("-rp",help="定义排除的端口，例如:25,110")
-    # @click.option("-jp",action="store_true",help="跳过主机发现")
-    # @click.option("-ts",help="设置超时时间，默认1s")
-    # @click.option("-v", action="store_true",help="显示所有扫描结果")
-    # @click.option("-t", "--threads", help="定义扫描的线程，默认为400")
-    # @click.option("--txt", help="定义输出文本文件")
-    # @click.option("--html",help="定义输出html文件")
-    
+    # portscan = Portscan()
+    # portscan.chuli_canshu('127.0.0.1','','','','','',1,0,400,'','')
 
 
 
+
+
+
+
+
+
+        
