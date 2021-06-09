@@ -558,6 +558,7 @@ class Portscan:
             host = ip_port.split(':')[0]
             port = ip_port.split(':')[1]
             pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
+            pbar.update(1)
             # print(host,port)
             try:
                 tcp = socket(AF_INET, SOCK_STREAM)
@@ -623,7 +624,7 @@ class Portscan:
                     tcp.close()
                 except:
                     pass
-            pbar.update(1)
+            
     def scanservice(self,host,port,timeout):
         return_result =''
         service='Unknown'
