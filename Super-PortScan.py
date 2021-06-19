@@ -20,15 +20,9 @@ init(autoreset=True)    #  初始化，并且设置颜色设置自动恢复
 #         | |                                                           
 #         |_|                                       
 #                 github: https://github.com/qianxiao996/Super-PortScan''')
-flag = 0  # 是否显示过程
-jp_flag=0 #跳过主机发现
-out_txt=''#输出txt文件
-out_html=''
-all_remove_port=[] #排除的端口
+
 lock = threading.Lock() #申请一个锁
 # scan(['blog.qianxiao996.cn','129.204.113.202'], [443,80,8081], 22,1)
-# exit()
-all_port_list = [21,22,23,25,53,53,80,81,110,111,123,123,135,137,139,161,389,443,445,465,500,515,520,523,548,623,636,873,902,1080,1099,1433,1521,1604,1645,1701,1883,1900,2049,2181,2375,2379,2425,3128,3306,3389,4730,5060,5222,5351,5353,5432,5555,5601,5672,5683,5900,5938,5984,6000,6379,7001,7077,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8080,8081,8443,8545,8686,9000,9042,9092,9100,9200,9418,9999,11211,15210,27017,37777,33899,33889,50000,50070,61616]
 
 
 signs_rules=[
@@ -276,7 +270,7 @@ html_head='''
         ordering: true,//是否启用排序
         searching: true,//搜索
         language: {
-            lengthMenu: '<select class="form-control input-xsmall">' + '<option value="1">1</option>' + '<option value="10">10</option>' + '<option value="20">20</option>' + '<option value="50">50</option>' + '<option value="100">100</option>' + '<option value="200">200</option>'  + '<option value="500">500</option>'  + '<option value="1000">1000</option>' + '</select>条记录',//左上角的分页大小显示。
+            lengthMenu: '<select class="form-control input-xsmall">' + '<option value="1">1</option>' + '<option value="10">10</option>' + '<option value="20">20</option>' + '<option value="50">50</option>' + '<option value="100">100</option>' + '<option value="200">200</option>'  + '<option value="500">500</option>'  + '<option value="1000">1000</option>' + '<option value="5000">5000</option>' + '</select>条记录',//左上角的分页大小显示。
             search: '<button onclick="exportCsv()" style="margin:2px 30px">导出CSV</button><span class="label label-success" style="">搜索:</span>',//右上角的搜索文本，可以写html标签
             
             paginate: {//分页的样式内容。
@@ -348,31 +342,42 @@ html_head='''
         
 </script>
 '''
+
 class Portscan:
+    def __init__(self):
+        self.portQueue = queue.Queue()
+        self.ipQueue = queue.Queue()
+        self.flag = 0  # 是否显示过程
+        self.jp_flag = 0  # 跳过主机发现
+        self.out_txt = ''  # 输出txt文件
+        self.out_html = ''
+        self.all_remove_port = []  # 排除的端口
+        self.all_port_list = [21, 22, 23, 25, 53, 53, 80, 81, 110, 111, 123, 123, 135, 137, 139, 161, 389, 443, 445, 465,
+                         500, 515, 520, 523, 548, 623, 636, 873, 902, 1080, 1099, 1433, 1521, 1604, 1645, 1701, 1883,
+                         1900, 2049, 2181, 2375, 2379, 2425, 3128, 3306, 3389, 4730, 5060, 5222, 5351, 5353, 5432, 5555,
+                         5601, 5672, 5683, 5900, 5938, 5984, 6000, 6379, 7001, 7077, 8001, 8002, 8003, 8004, 8005, 8006,
+                         8007, 8008, 8009, 8010, 8080, 8081, 8443, 8545, 8686, 9000, 9042, 9092, 9100, 9200, 9418, 9999,
+                         11211, 15210, 27017, 37777, 33899, 33889, 50000, 50070]
+        self.ip_1_list=[] #存放存活的ip
     def chuli_canshu(self,ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
-        try: 
+        try:
             if verbose:
-                global  flag
-                flag=1
+                self.flag=1
             if jump_port:
-                global jp_flag
-                jp_flag=1
+                self.jp_flag=1
             if txt:
-                global  out_txt
-                out_txt=txt
+                self.out_txt=txt
             if html:
-                global  out_html
-                out_html=html
+                self.out_html=html
 
             if timeout:
                 timeout=int(timeout)
             else:
                 timeout=1
-            global all_remove_port
             if remove_port:
                 remove_port_temp = (remove_port).split(",")
                 # print(type(remove_port_temp))
-                all_remove_port.extend(remove_port_temp)
+                self.all_remove_port.extend(remove_port_temp)
                 # print(remove_port)
             port_list=[]
             if  port :
@@ -380,16 +385,63 @@ class Portscan:
             elif port_file:
                 port_list = self.get_port_file_list(port_file)
             else:
-                port_list = self.diff_of_two_list(all_port_list,all_remove_port)
+                port_list = self.diff_of_two_list(self.all_port_list,self.all_remove_port)
+            ip_list=[]
             if ip:
+                print(Fore.BLUE + "[*] GET IP...")
                 ip_list =  self.get_ip_d_list(ip)
+                print(Fore.BLUE + "[*] IP Num:%s"%len(ip_list))
+
             elif file:
                 ip_list =  self.get_ip_f_list(file)
-            self.scan(ip_list,port_list,int(threads),timeout)
 
+            if (self.jp_flag == 1):
+                self.ip_1_list = ip_list
+            else:
+                try:
+                    print(Fore.BLUE + "[*] Start survival detection")
+                    for ip in ip_list:
+                        self.ipQueue.put(ip)
+                    ip_threads=[]
+                    if threads>self.ipQueue.qsize():
+                        ip_threads_num=self.ipQueue.qsize()
+                    else:
+                        ip_threads_num=threads
+                    for i in range(int(ip_threads_num)):
+                        i = threading.Thread(target=self.ipScanner, args=())
+                        ip_threads.append(i)
+                    for i in ip_threads:
+                        i.start()
+                    for j in ip_threads:
+                        j.join()
+                        # 开始扫描
+                except KeyboardInterrupt:
+                    self.ipQueue.queue.clear()
+                    print(Fore.RED + "用户中途退出！")
+                    return
+            # print(self.ip_1_list)
+            if len(self.ip_1_list) > 0:
+                self.scan(port_list, int(threads), timeout)
+            else:
+                print(Fore.YELLOW + "[*] NO IP is alive")
+
+        except KeyboardInterrupt:
+            print(Fore.RED + "用户中途退出！")
+            return
         except Exception as e:
-            print(e)
+            print(Fore.RED+str(e)+str(e.__traceback__.tb_lineno)+'行')
             print(Fore.RED+'参数输入错误！')
+    def ipScanner(self):
+        while True:
+            if self.ipQueue.empty():  # 队列空就结束
+                break
+            ip= self.ipQueue.get()  # 从队列中取出
+            if(self.startPing(ip)):
+                print(Fore.YELLOW + "[*] IP:" + ip + " is alive\n", end="")
+                self.ip_1_list.append(ip)
+
+
+
     def get_system(self):
         if os.name == 'nt':
             return 'n'
@@ -432,6 +484,7 @@ class Portscan:
                     # print(isinstance(ip, ipaddr.IPv4Address))
                     # print (str(ip))
                 ip_list = ip_list[1:-1]
+
             except:
                 print(Fore.RED+'Error:IP段设置错误！')
                 return
@@ -454,11 +507,14 @@ class Portscan:
             ip_list = ip.split()
             # ip_list.append(re_result3.group())
         # 列表去重
-        all_list = []
-        for i in ip_list:
-            if i not in all_list:
-                all_list.append(i)
-        return list(filter(None, all_list))  # 去除 none 和 空字符
+        # new_lis = list(set(ip_list))
+        # new_lis.sort(key=ip_list.index)
+        # return new_lis
+        # all_list = []
+        # for i in ip_list:
+        #     if i not in all_list:
+        #         all_list.append(i)
+        return list(filter(None, ip_list))  # 去除 none 和 空字符
     #得到文件中的ip列表
     def get_ip_f_list(self,file):
         all_list =[]
@@ -468,11 +524,11 @@ class Portscan:
                 for line in file:
                     all_list =all_list+  self.get_ip_d_list(line)
                 file.close()
-                all_list2 = []
-                for i in all_list:
-                    if i not in all_list2:
-                        all_list2.append(i)
-                return list(filter(None, all_list2))  # 去除 none 和 空字符
+                # all_list2 = []
+                # for i in all_list:
+                #     if i not in all_list2:
+                #         all_list2.append(i)
+                return list(filter(None, all_list))  # 去除 none 和 空字符
             except:
                 print(Fore.RED+'Error:文件读取错误！')
                 exit()
@@ -510,7 +566,7 @@ class Portscan:
         for i in port_list:
             if  int(i) > 65535:
                 port_list.remove(i)
-        port_list = self.diff_of_two_list(port_list,all_remove_port)
+        port_list = self.diff_of_two_list(port_list,self.all_remove_port)
         # print(port_list)
         return port_list
     def get_port_file_list(self,port_file_path):
@@ -529,7 +585,7 @@ class Portscan:
                             port_list.remove(i)
                 except:
                     print(Fore.RED+'Error:端口文件读取错误！')
-                port_list = self.diff_of_two_list(port_list,all_remove_port)
+                port_list = self.diff_of_two_list(port_list,self.all_remove_port)
                 return port_list
             else:
                 print(Fore.RED+'Error:端口文件不存在！')
@@ -550,17 +606,19 @@ class Portscan:
             # print(type(value))
         # return list(set(list1)-set(list2))
 
-    def portScanner(self,portQueue,timeout,pbar):
+    def portScanner(self,timeout,pbar):
         while True:
-            if portQueue.empty():  # 队列空就结束
+            if self.portQueue.empty():  # 队列空就结束
                 break
-            ip_port = portQueue.get()  # 从队列中取出
+            ip_port = self.portQueue.get()  # 从队列中取出
             host = ip_port.split(':')[0]
             port = ip_port.split(':')[1]
             pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
             pbar.update(1)
             # print(host,port)
             try:
+                Banner=''
+                title=''
                 tcp = socket(AF_INET, SOCK_STREAM)
                 tcp.settimeout(int(timeout))  # 如果设置太小，检测不精确，设置太大，检测太慢
                 # print(host,port)
@@ -575,13 +633,19 @@ class Portscan:
                         if service=="Unknown":
                             return_Data  = self.scanservice(host, port,timeout)
                             service = return_Data[0]
-                            Banner =return_Data[1]
+                            if return_Data[1]!='':
+                                Banner =return_Data[1]
+                            if return_Data[2]:
+                                title =return_Data[2]
                         # print(Banner)
                         # print(service)
                     except:
                         return_Data = self.scanservice(host, port, timeout)
                         service = return_Data[0]
-                        Banner = return_Data[1]
+                        if return_Data[1]!='':
+                            Banner =return_Data[1]
+                        if return_Data[2]:
+                            title = return_Data[2]
                     if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
                         try:
                             if  service =='https' or  service =='HTTPS':
@@ -592,32 +656,41 @@ class Portscan:
                             if not html:
                                 html = requests.post(url_address,verify = False)
                             html.encoding = html.apparent_encoding
-                            # print (html.text)
-                            re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
-                            if re_data:
-                                Banner = re_data.group().replace('<title>','').replace('</title>','')
-                            # print(html.text)
-                            if  Banner=="Unknown":
-                                if "404 Not Found" in html.text:
-                                    Banner="404 Not Found"
+                            if html.status_code==404:
+                                title="404 Not Found"
+                            elif html.text:
+                                Banner = html.text
+                                # print (html.text)
+                                re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
+                                if re_data:
+                                    title = re_data.group().replace('<title>','').replace('</title>','').replace('<TITLE>','').replace('</TITLE>','')
+                                # print(html.text)
+                                elif "404 Not Found" in html.text:
+                                    title="404 Not Found"
                                 elif "Page Not Found" in html.text:
-                                    Banner="Page Not Found"
+                                    title="Page Not Found"
                                 else:
-                                    Banner=html.text[:100]
+                                    title=''
+                            else:
+                                title=''
+
                             # print (title)
-                        except:
-                            Banner = html.text[:100]
+                        except Exception as e:
+                            # print(e)
+                            title = ""
+
                             # Banner =Banner
 
                     # Banner=''
-                    self.out_result(host,port,'Opened',Banner,service,url_address)
+                    self.out_result(host,port,'Opened',Banner,service,url_address,title)
                 else:
-                    # print(flag)
-                    if  flag:
-                        self.out_result(host,port,'Close',"None",'Unknown','')
-            except:
-                if  flag:
-                    self.out_result(host, port, 'Close', "None", 'Unknown','')
+                    # print(self.flag)
+                    if  self.flag:
+                        self.out_result(host,port,'Close',"None",'Unknown','','')
+            except Exception as e:
+                print(e)
+                if  self.flag:
+                    self.out_result(host, port, 'Close', "None", 'Unknown','','')
                 continue
             finally:
                 try:
@@ -626,7 +699,6 @@ class Portscan:
                     pass
             
     def scanservice(self,host,port,timeout):
-        return_result =''
         service='Unknown'
         for probe in PROBES:
             try:
@@ -637,15 +709,17 @@ class Portscan:
             except:
                 continue
             try:
+                Banner = ''
+                title=''
                 result = sd.recv(1024).decode("raw_unicode_escape")
                 # print(result)
                 if ("<title>400 Bad Request</title>"in result and  "https" in result ) or ("<title>400 Bad Request</title>"in result and  "HTTPS" in result ):
                     service ='https'
-                    return_result ="Unknown"
+                    title =result
                     break
                 service = self.matchbanner(result, signs_rules)
                 if service != 'Unknown':
-                    return_result ="Unknown"
+                    Banner =result
                     break
 
             except:
@@ -654,7 +728,7 @@ class Portscan:
             pass
         else:
             service = self.get_server(str(port))
-        return service,return_result
+        return service,Banner,title
 
     def get_server(self,port):
         SERVER = {
@@ -704,7 +778,7 @@ class Portscan:
             'CouchDB': '5984',
             'varnish': '6082',
             'Redis': '6379',
-            'Weblogic': '9001',
+            'Weblogic': '7001',
             'Kloxo': '7778',
             'Zabbix': '8069',
             'RouterOS': '8291',
@@ -729,10 +803,15 @@ class Portscan:
             if p.search(banner)!=None:
                 return item[0]
         return 'Unknown'
-    def out_result(self,host,port,zhuangtai,Banner='None',service='Unknown',url_address=''):
+    def out_result(self,host,port,zhuangtai,Banner='None',service='Unknown',url_address='',title=''):
         lock.acquire()  #加锁
+        if len(Banner)>60:
+            Banner =Banner[:60]
         if zhuangtai=='Opened':
-            Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+            if title:
+                Banner = (str(title).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
+            else:
+                Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
             tqdm.write(Fore.GREEN+'[+] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Opened'.ljust(6,' ') + '\t\t' + service.ljust(
             6, ' ') + '\t\t' + Banner.ljust(20, ' '))
         else:
@@ -741,117 +820,81 @@ class Portscan:
             tqdm.write(Fore.BLACK+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
                 6, ' ') + '\t\t' + Banner.ljust(20, ' '))
         try:
-            if out_txt!='':
-                f=open(out_txt,"a")
+            if self.out_txt!='':
+                f=open(self.out_txt,"a")
                 f.write(host+' '+port+' opened '+service+'\n')
                 f.close()
-            if out_html !='':
+            if self.out_html !='':
                 # print(Banner)
-                Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
+                if title:
+                    Banner = ((title.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
+                else:
+                    Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
                 # print(Banner)
                 # Banner = Banner.strip()
                 out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
 
-                if os.path.exists(out_html):
-                    f2 = open(out_html, "a")
+                if os.path.exists(self.out_html):
+                    f2 = open(self.out_html, "a")
                     f2.write(out_str)
                 else:
-                    f2 = open(out_html, "a")
+                    f2 = open(self.out_html, "a")
                     f2.write(html_head)
                     f2.write(out_str)
                 f2.close()
         except:
             print(Fore.RED+'文件写入出错！')
         lock.release()  #执行完 ，释放锁
-        #创建线程
-    def createThread(self,num,portQueue,timeout,threads,pbar):
-        # self.portScanner(portQueue,timeout,pbar)
-        for i in range(num):
-            i= threading.Thread(target=self.portScanner, args=(portQueue,timeout,pbar))
-            threads.append(i)
-    def  scan(self,ip_list,port_list,threadNum,timeout):
+
+    def  scan(self,port_list,threadNum,timeout):
         if(threadNum<len(port_list)):
             threadNum=threadNum
         else:
             threadNum =len(port_list)
-        print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(ip_list),len(port_list),len(all_remove_port),threadNum))
-        print(Fore.YELLOW+'[*] The Scan is Start')
-        count = len(port_list)*len(ip_list)
+        print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(self.ip_1_list),len(port_list),len(self.all_remove_port),threadNum))
+        print(Fore.YELLOW+'[*] The PortScan is Start')
+        count = len(port_list)*len(self.ip_1_list)
         try:
             with tqdm(total=count,ncols=100) as pbar:
-                for ip in ip_list:
+                tqdm.write(
+                    Fore.CYAN + '[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(
+                        6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+
+                self.portQueue.queue.clear()
+                for ip in self.ip_1_list:
                     ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
-                    if(jp_flag==1):
-                        tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Start!')
-                        tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,
-                                                                                                                            ' ') + '\t\t' + 'Service'.ljust(
-                            6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
-                        threads=[]#线程列表
-                        portQueue = queue.Queue()  
-                        portQueue.queue.clear()
-                        for i in port_list:
-                            # print(port_list)
-                            portQueue.put(ip+':'+str(i))
-                        # print(threadNum)
-                        # print(portQueue.qsize())
-                        # print(threadNum)
-                        self.createThread(threadNum, portQueue,timeout,threads,pbar)
+
+                    for i in port_list:
+                        # print(port_list)
+                        self.portQueue.put(ip+':'+str(i))
+                    # print(threadNum)
+                    # print(self.portQueue.qsize())
+                    # print(threadNum)
+                if self.portQueue.qsize() >0:
+                    try:
+                        threads = []  # 线程列表
+                        for i in range(threadNum):
+                            i = threading.Thread(target=self.portScanner, args=(timeout, pbar))
+                            threads.append(i)
                         for t in threads:#启动线程
                             t.start()
                         for t in threads:#阻塞线程，等待线程结束
-                            # print(len(threads))
-                            # if len(threads)==0:
-                            #     # exit()
-                            #     time.sleep(5)
-                            #     break
                             t.join()
-                            threads=[]
-                        tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
 
-                        #
-                    else:
-                        if(self.startPing(ip)):
-                            # pbar.update(1)
-                            tqdm.write(Fore.YELLOW+'[*] The '+ip+' is Up!')
-                            tqdm.write(Fore.CYAN+'[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
-                            threads=[]#线程列表
-                            portQueue = queue.Queue()  # 待检测端口队列，会在《Python常用操作》一文中更新用法
-                            portQueue.queue.clear()
-                            for i in port_list:
-                                # print(port_list)
-                                portQueue.put(ip+':'+str(i))
-                            # print(portQueue.qsize())
-                            # print(threadNum)/
-                            self.createThread(threadNum, portQueue,timeout,threads,pbar)
-                            # print(threads)
-                            for t in threads:#启动线程
-                                t.start()
-                            for t in threads:#阻塞线程，等待线程结束
-                                # if len(threads)==0:
-                                #     # exit()
-                                #     time.sleep(5)
-                                #     break
-                                t.join()
-                                threads = []
-                            tqdm.write(Fore.YELLOW+'[*] The ' + ip + ' is Complete!')
-
-
-                                # tqdm.write('[*] The '+ip+' is complete!')
-                        else:
-                            pbar.update(len(port_list))
-                            tqdm.write(Fore.BLACK+'[*] '+ip+' is down!')
-                                # pbar.close()
+                    except KeyboardInterrupt:
+                        self.portQueue.queue.clear()
+                        print(Fore.RED + "用户中途退出！")
+                        return
 
                 tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
                 pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
                 pbar.close()
         except KeyboardInterrupt:
             print(Fore.RED+"用户中途退出！")
-            exit()
             pass
 
 @click.command()
-@click.version_option(version='1.3.6')
+@click.version_option(version='1.3.7')
 @click.option("-i", "--ip",help="输入ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
@@ -864,6 +907,7 @@ class Portscan:
 @click.option("--txt", help="定义输出文本文件",default='')
 @click.option("--html",help="定义输出html文件",default='')
 def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
+    # print(ip)
     portscan = Portscan()
     portscan.chuli_canshu(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html)
     
@@ -881,7 +925,7 @@ if __name__ == '__main__':
                        github: https://github.com/qianxiao996/Super-PortScan''')
     click_main()
     # portscan = Portscan()
-    # portscan.chuli_canshu('127.0.0.1','','','','','',1,0,400,'','')
+    # portscan.chuli_canshu('129.204.113.202','','','','','',1,0,400,'','')
 
 
 
