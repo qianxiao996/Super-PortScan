@@ -397,6 +397,8 @@ class Portscan:
 
             elif file:
                 ip_list =  self.get_ip_f_list(file)
+            else:
+                return
 
             if (self.jp_flag == 1):
                 self.ip_1_list = ip_list
