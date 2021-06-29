@@ -382,13 +382,12 @@ class Portscan:
                 # print(type(remove_port_temp))
                 self.all_remove_port.extend(remove_port_temp)
                 # print(remove_port)
-            port_list=[]
             if  port :
-                port_list = self.get_port_list(port)
+                self.all_port_list  = self.get_port_list(port)
             elif port_file:
-                port_list = self.get_port_file_list(port_file)
+                self.all_port_list  = self.get_port_file_list(port_file)
             else:
-                port_list = self.diff_of_two_list(self.all_port_list,self.all_remove_port)
+                self.all_port_list  = self.diff_of_two_list(self.all_port_list,self.all_remove_port)
             ip_list=[]
             if ip:
                 print(Fore.BLUE + "[*] GET IP...")
@@ -427,7 +426,7 @@ class Portscan:
                     return
             # print(self.ip_1_list)
             if len(self.ip_1_list) > 0:
-                self.scan(port_list, int(threads), timeout)
+                self.scan(int(threads), timeout)
             else:
                 print(Fore.YELLOW + "[*] NO IP is alive")
 
@@ -645,115 +644,143 @@ class Portscan:
     def portScanner(self,timeout,pbar):
         while True:
             try:
-                eventlet.monkey_patch(thread=False, time=True)
-                with eventlet.Timeout(60, False):
-                    if self.portQueue.empty():  # 队列空就结束
-                        break
-                    ip_port = self.portQueue.get()  # 从队列中取出
-                    host = ip_port.split(':')[0]
-                    port = ip_port.split(':')[1]
-                    pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
-                    pbar.update(1)
-                    # print(host,port)
-                    try:
-                        Banner=''
-                        title=''
-                        tcp = socket(AF_INET, SOCK_STREAM)
-                        tcp.settimeout(int(timeout))  # 如果设置太小，检测不精确，设置太大，检测太慢
+                # tqdm.write(str(self.portQueue.qsize()))
+                if self.portQueue.qsize()==0 and len(self.ip_1_list)>0:
+                    for i in self.all_port_list :
+                        # print(port_list)
+                        self.portQueue.put(self.ip_1_list[0]+':'+str(i))
+                    del(self.ip_1_list[0])
+                else:
+                    Banner=''
+                    title=''
+                    eventlet.monkey_patch(thread=False, time=True)
+                    with eventlet.Timeout(60, False):
+                        if self.portQueue.empty():  # 队列空就结束
+                            break
+                        ip_port = self.portQueue.get()  # 从队列中取出
+                        host = ip_port.split(':')[0]
+                        port = ip_port.split(':')[1]
+                        pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
+                        pbar.update(1)
                         # print(host,port)
-                        result = tcp.connect_ex((host, int(port)))  # 效率比connect高，成功时返回0，失败时返回错误码
-                        # print(port+"success")
-                        if result == 0:
-                            url_address=''
-                            tcp.send("test".encode(encoding='utf-8'))
-                            try:
-                                Banner = tcp.recv(100).decode("raw_unicode_escape")
-                                service=self.matchbanner(Banner,signs_rules)
-                                if service=="Unknown":
-                                    return_Data  = self.scanservice(host, port,timeout)
+                        try:
+                            tcp = socket(AF_INET, SOCK_STREAM)
+                            tcp.settimeout(int(timeout))  # 如果设置太小，检测不精确，设置太大，检测太慢
+                            # print(host,port)
+                            result = tcp.connect_ex((host, int(port)))  # 效率比connect高，成功时返回0，失败时返回错误码
+                            # print(port+"success")
+                            if result == 0:
+                                url_address=''
+                                tcp.send("test".encode(encoding='gbk'))
+                                try:
+                                    #Banner = tcp.recv(100).decode("raw_unicode_escape")
+                                    Banner = tcp.recv(100)
+                                    try:
+                                        Banner = Banner.decode("gbk")
+                                    except:
+                                        # print(str(Banner.decode("raw_unicode_escape").strip().encode("utf-8")))
+                                        Banner=str(Banner.decode("raw_unicode_escape").strip().encode("utf-8"))
+                                    # Banner = tcp.recv(100)
+                                    # print(str(Banner)[2:-1])
+                                    # print(Banner)
+
+                                    Banner=str(Banner[2:-1])
+                                    service=self.matchbanner(Banner,signs_rules)
+                                    if service=="Unknown":
+                                        return_Data  = self.scanservice(host, port,timeout)
+                                        service = return_Data[0]
+                                        if return_Data[1]!='':
+                                            Banner =return_Data[1]
+                                        if return_Data[2]:
+                                            title =return_Data[2]
+                                    # print(Banner)
+                                    # print(service)
+                                except:
+                                    return_Data = self.scanservice(host, port, timeout)
                                     service = return_Data[0]
                                     if return_Data[1]!='':
                                         Banner =return_Data[1]
                                     if return_Data[2]:
-                                        title =return_Data[2]
-                                # print(Banner)
-                                # print(service)
-                            except:
-                                return_Data = self.scanservice(host, port, timeout)
-                                service = return_Data[0]
-                                if return_Data[1]!='':
-                                    Banner =return_Data[1]
-                                if return_Data[2]:
-                                    title = return_Data[2]
-                            if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
-                                try:
-                                    if  service =='https' or  service =='HTTPS':
-                                        url_address = 'https://'+host+':'+port
-                                    else:
-                                        url_address = 'http://'+host+':'+port
-                                    html = requests.get(url_address,verify = False)
-                                    if not html:
-                                        html = requests.post(url_address,verify = False)
-                                    html.encoding = html.apparent_encoding
-                                    if html.status_code==404:
-                                        title="404 Not Found"
-                                    elif html.text:
-                                        Banner = html.text
-                                        # print (html.text)
-                                        re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
-                                        if re_data:
-                                            title = re_data.group().replace('<title>','').replace('</title>','').replace('<TITLE>','').replace('</TITLE>','')
-                                        # print(html.text)
-                                        elif "404 Not Found" in html.text:
+                                        title = return_Data[2]
+                                if service =='http' or  service =='HTTP'  or  service =='HTTPS'  or  service =='https' :
+                                    try:
+                                        if  service =='https' or  service =='HTTPS':
+                                            url_address = 'https://'+host+':'+port
+                                        else:
+                                            url_address = 'http://'+host+':'+port
+                                        html = requests.get(url_address,verify = False)
+                                        if not html:
+                                            html = requests.post(url_address,verify = False)
+                                        html.encoding = html.apparent_encoding
+                                        if html.status_code==404:
                                             title="404 Not Found"
-                                        elif "Page Not Found" in html.text:
-                                            title="Page Not Found"
+                                        elif html.text:
+                                            Banner = html.text
+                                            # print (html.text)
+                                            re_data = re.search(r'<title>(.+)</title>',html.text,re.I|re.M)
+                                            if re_data:
+                                                title = re_data.group().replace('<title>','').replace('</title>','').replace('<TITLE>','').replace('</TITLE>','')
+                                            # print(html.text)
+                                            elif "404 Not Found" in html.text:
+                                                title="404 Not Found"
+                                            elif "Page Not Found" in html.text:
+                                                title="Page Not Found"
+                                            else:
+                                                title=''
                                         else:
                                             title=''
-                                    else:
-                                        title=''
 
-                                    # print (title)
-                                except Exception as e:
-                                    # print(e)
-                                    title = ""
+                                        # print (title)
+                                    except Exception as e:
+                                        # print(e)
+                                        title = ""
 
-                                    # Banner =Banner
+                                        # Banner =Banner
 
-                            # Banner=''
-                            self.out_result(host,port,'Opened',Banner,service,url_address,title)
-                        else:
-                            # print(self.flag)
+                                # Banner=''
+                                
+                                self.out_result(host,port,'Opened',Banner,service,url_address,title)
+                            else:
+                                # print(self.flag)
+                                if  self.flag:
+                                    self.out_result(host,port,'Close',"None",'Unknown','','')
+                        except Exception as e:
+                            print(e)
                             if  self.flag:
-                                self.out_result(host,port,'Close',"None",'Unknown','','')
-                    except Exception as e:
-                        print(e)
-                        if  self.flag:
-                            self.out_result(host, port, 'Close', "None", 'Unknown','','')
-                        continue
-                    finally:
-                        try:
-                            tcp.close()
-                        except:
-                            pass
-                continue
+                                self.out_result(host, port, 'Close', "None", 'Unknown','','')
+                            continue
+                        finally:
+                            try:
+                                tcp.close()
+                            except:
+                                pass
+                    continue
             except Exception as e:
                 continue
 
     def scanservice(self,host,port,timeout):
+        Banner = ''
+        title=''
         service='Unknown'
         for probe in PROBES:
             try:
                 sd = socket(AF_INET, SOCK_STREAM)
                 sd.settimeout(int(timeout))
                 sd.connect((host, int(port)))
-                sd.send(probe.encode(encoding='utf-8'))
+                sd.send(probe.encode(encoding='gbk'))
             except:
                 continue
             try:
-                Banner = ''
-                title=''
-                result = sd.recv(1024).decode("raw_unicode_escape")
+                result = sd.recv(1024)
+                try:
+                    result = result.decode("gbk")
+                except:
+                    result=str(result.decode("raw_unicode_escape").strip().encode("utf-8"))
+                    # result=str(result.decode("raw_unicode_escape").strip().encode("utf-8"))[2:-1]
+                    # result = result.decode("raw_unicode_escape")
+
+
+                # result = sd.recv(1024).decode("raw_unicode_escape")
                 # print(result)
                 if ("<title>400 Bad Request</title>"in result and  "https" in result ) or ("<title>400 Bad Request</title>"in result and  "HTTPS" in result ):
                     service ='https'
@@ -872,30 +899,31 @@ class Portscan:
                     Banner = ((title.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
                 else:
                     Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
+                Banner=Banner.replace("\\x",'\\\\x')
                 # print(Banner)
                 # Banner = Banner.strip()
                 out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
 
                 if os.path.exists(self.out_html):
-                    f2 = open(self.out_html, "a")
+                    f2 = open(self.out_html, "a",encoding='utf-8')
                     f2.write(out_str)
                 else:
-                    f2 = open(self.out_html, "a")
+                    f2 = open(self.out_html, "a",encoding='utf-8')
                     f2.write(html_head)
                     f2.write(out_str)
                 f2.close()
-        except:
-            print(Fore.RED+'文件写入出错！')
+        except Exception as e :
+            print(Fore.RED+'文件写入出错！'+str(e))
         lock.release()  #执行完 ，释放锁
 
-    def  scan(self,port_list,threadNum,timeout):
-        if(threadNum<len(port_list)):
+    def  scan(self,threadNum,timeout):
+        if(threadNum<len(self.all_port_list)):
             threadNum=threadNum
         else:
-            threadNum =len(port_list)
-        print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(self.ip_1_list),len(port_list),len(self.all_remove_port),threadNum))
+            threadNum =len(self.all_port_list)
+        print(Fore.CYAN+'[*] 共扫描%s个IP,%s种端口,排除%s种端口,线程:%s,请稍后..'%(len(self.ip_1_list),len(self.all_port_list),len(self.all_remove_port),threadNum))
         print(Fore.YELLOW+'[*] The PortScan is Start')
-        count = len(port_list)*len(self.ip_1_list)
+        count = len(self.all_port_list )*len(self.ip_1_list)
         try:
             with tqdm(total=count,ncols=100) as pbar:
                 tqdm.write(
@@ -903,12 +931,24 @@ class Portscan:
                         6,' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
 
                 self.portQueue.queue.clear()
-                for ip in self.ip_1_list:
-                    ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
+                kkk = int(threadNum/len(self.all_port_list ))+1
+                try:
+                    for i in range(0,kkk):
+                        for port in self.all_port_list :
+                            # print(port_list)
+                            self.portQueue.put(self.ip_1_list[i]+':'+str(port))
 
-                    for i in port_list:
-                        # print(port_list)
-                        self.portQueue.put(ip+':'+str(i))
+                        self.ip_1_list.remove(self.ip_1_list[i])
+                except:
+                    pass
+                    
+
+                # for ip in self.ip_1_list:
+                #     ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
+
+                #     for i in port_list:
+                #         # print(port_list)
+                #         self.portQueue.put(ip+':'+str(i))
                     # print(threadNum)
                     # print(self.portQueue.qsize())
                     # print(threadNum)
@@ -936,7 +976,7 @@ class Portscan:
             pass
 
 @click.command()
-@click.version_option(version='1.3.7')
+@click.version_option(version='1.3.9')
 @click.option("-i", "--ip",help="输入ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
