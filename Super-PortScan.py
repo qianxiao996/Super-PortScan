@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import html
 from socket import *
 import threading      #导入线程相关模块
 import queue,os,requests
-import re
+import re,sys
 from colorama import init, Fore
 import click
 import eventlet
@@ -362,7 +363,8 @@ class Portscan:
                          8007, 8008, 8009, 8010, 8080, 8081, 8443, 8545, 8686, 9000, 9042, 9092, 9100, 9200, 9418, 9999,
                          11211, 15210, 27017, 37777, 33899, 33889, 50000, 50070]
         self.ip_1_list=[] #存放存活的ip
-    def chuli_canshu(self,ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
+        self.ip_2_list = []  # ip:port 模式存放列表
+    def chuli_canshu(self,ip,file,port,port_file,remove_port,ip_port,jump_port,timeout,verbose,threads,txt,html):
         try:
             if verbose:
                 self.flag=1
@@ -377,10 +379,6 @@ class Portscan:
                 timeout=int(timeout)
             else:
                 timeout=1
-            if remove_port:
-                remove_port_temp = (remove_port).split(",")
-                # print(type(remove_port_temp))
-                self.all_remove_port.extend(remove_port_temp)
                 # print(remove_port)
             if  port :
                 self.all_port_list  = self.get_port_list(port)
@@ -388,47 +386,89 @@ class Portscan:
                 self.all_port_list  = self.get_port_file_list(port_file)
             else:
                 self.all_port_list  = self.diff_of_two_list(self.all_port_list,self.all_remove_port)
+            if remove_port:
+                remove_port_temp = (remove_port).split(",")
+                # print(type(remove_port_temp))
+                self.all_remove_port.extend(remove_port_temp)
             ip_list=[]
-            if ip:
-                print(Fore.BLUE + "[*] GET IP...")
-                ip_list =  self.get_ip_d_list(ip)
-                print(Fore.BLUE + "[*] IP Num:%s"%len(ip_list))
-
-            elif file:
-                ip_list =  self.get_ip_f_list(file)
-            else:
-                return
-
-            if (self.jp_flag == 1):
-                self.ip_1_list = ip_list
-            else:
-                try:
-                    print(Fore.BLUE + "[*] Start survival detection")
-                    for ip in ip_list:
-                        self.ipQueue.put(ip)
-                    ip_threads=[]
-                    if threads>self.ipQueue.qsize():
-                        ip_threads_num=self.ipQueue.qsize()
+            if ip and file:
+                click.echo(Fore.RED+"[E] 不能同时输入IP和文件参数！")
+                sys.exit()
+            if (port and ip_port) or (port_file and ip_port):
+                click.echo(Fore.RED + "[E] IP对应端口探测模式不允许指定-p参数！")
+                sys.exit()
+            #ip:port模式
+            if ip_port:
+                if ip:
+                    self.ip_2_list.append(ip)
+                elif file:
+                    if os.path.exists(file):
+                        try:
+                            all_list=[]
+                            file = open(file, 'r', encoding='utf-8')
+                            for line in file:
+                                all_list.append(line.strip())
+                            file.close()
+                            self.ip_2_list=list(filter(None, all_list))  # 去除 none 和 空字符
+                        except:
+                            print(Fore.RED + 'Error:文件读取错误！')
+                            sys.exit()
                     else:
-                        ip_threads_num=threads
-                    for i in range(int(ip_threads_num)):
+                        print(Fore.RED + 'Error:文件不存在')
+                        sys.exit()
+                # print(self.ip_1_list)
+                if len(self.ip_2_list) > 0:
+                    self.ip_port_scan(int(threads), timeout)
+                else:
+                    print(Fore.YELLOW + "[*] NO IP")
 
-                        i = threading.Thread(target=self.ipScanner, args=())
-                        ip_threads.append(i)
-                    for i in ip_threads:
-                        i.start()
-                    for j in ip_threads:
-                        j.join()
-                        # 开始扫描
-                except KeyboardInterrupt:
-                    self.ipQueue.queue.clear()
-                    print(Fore.RED + "用户中途退出！")
-                    return
-            # print(self.ip_1_list)
-            if len(self.ip_1_list) > 0:
-                self.scan(int(threads), timeout)
             else:
-                print(Fore.YELLOW + "[*] NO IP is alive")
+                if ip:
+                    if len(ip.split(":"))==2:
+                        self.ip_2_list.append(ip)
+                        if len(self.ip_2_list) > 0:
+                            self.ip_port_scan(int(threads), timeout)
+                        else:
+                            print(Fore.YELLOW + "[*] NO IP")
+                        sys.exit()
+                    else:
+                        print(Fore.BLUE + "[*] GET IP...")
+                        ip_list =  self.get_ip_d_list(ip)
+                        print(Fore.BLUE + "[*] IP Num:%s"%len(ip_list))
+                elif file:
+                    ip_list =  self.get_ip_f_list(file)
+                else:
+                    return
+                if (self.jp_flag == 1):
+                    self.ip_1_list = ip_list
+                else:
+                    try:
+                        print(Fore.BLUE + "[*] Start survival detection")
+                        for ip in ip_list:
+                            self.ipQueue.put(ip)
+                        ip_threads=[]
+                        if threads>self.ipQueue.qsize():
+                            ip_threads_num=self.ipQueue.qsize()
+                        else:
+                            ip_threads_num=threads
+                        for i in range(int(ip_threads_num)):
+
+                            i = threading.Thread(target=self.ipScanner, args=())
+                            ip_threads.append(i)
+                        for i in ip_threads:
+                            i.start()
+                        for j in ip_threads:
+                            j.join()
+                            # 开始扫描
+                    except KeyboardInterrupt:
+                        self.ipQueue.queue.clear()
+                        print(Fore.RED + "用户中途退出！")
+                        sys.exit()
+                # print(self.ip_1_list)
+                if len(self.ip_1_list) > 0:
+                    self.scan(int(threads), timeout)
+                else:
+                    print(Fore.YELLOW + "[*] NO IP is alive")
 
         except KeyboardInterrupt:
             print(Fore.RED + "用户中途退出！")
@@ -566,10 +606,10 @@ class Portscan:
                 return list(filter(None, all_list))  # 去除 none 和 空字符
             except:
                 print(Fore.RED+'Error:文件读取错误！')
-                exit()
+                sys.exit()
         else:
             print(Fore.RED+'Error:文件不存在')
-            exit()
+            sys.exit()
     #得到端口列表
     def get_port_list(self,port):
         port_list=[]
@@ -641,15 +681,18 @@ class Portscan:
             # print(type(value))
         # return list(set(list1)-set(list2))
 
-    def portScanner(self,timeout,pbar):
+    def portScanner(self,timeout,pbar,list_type):
         while True:
             try:
                 # tqdm.write(str(self.portQueue.qsize()))
-                if self.portQueue.qsize()==0 and len(self.ip_1_list)>0:
+                if self.portQueue.qsize()==0 and  list_type=='1' and len(self.ip_1_list)>0:
                     for i in self.all_port_list :
                         # print(port_list)
                         self.portQueue.put(self.ip_1_list[0]+':'+str(i))
                     del(self.ip_1_list[0])
+                elif self.portQueue.qsize() == 0 and list_type =='2' and len(self.ip_2_list)>0:
+                    self.portQueue.put(self.ip_2_list[0])
+                    del(self.ip_2_list[0])
                 else:
                     Banner=''
                     title=''
@@ -657,9 +700,13 @@ class Portscan:
                     with eventlet.Timeout(60, False):
                         if self.portQueue.empty():  # 队列空就结束
                             break
-                        ip_port = self.portQueue.get()  # 从队列中取出
-                        host = ip_port.split(':')[0]
-                        port = ip_port.split(':')[1]
+                        ip_port = self.portQueue.get().split(":")  # 从队列中取出
+                        if len(ip_port)==2:
+                            host = ip_port[0]
+                            port = ip_port[1]
+                        else:
+                            host = ip_port[0]
+                            port=80
                         pbar.set_description(Fore.BLUE+'[*] Scanning:'+host+' '+port)  # 修改进度条描述
                         pbar.update(1)
                         # print(host,port)
@@ -709,6 +756,11 @@ class Portscan:
                                         else:
                                             url_address = 'http://'+host+':'+port
                                         html = requests.get(url_address,verify = False)
+                                        if html.status_code==400 and 'The plain HTTP request was sent to HTTPS port' in html.text:
+                                            # print(html.text)
+                                            service='https'
+                                            url_address = 'https://'+host+':'+port
+                                        html = requests.get(url_address,verify = False)
                                         if not html:
                                             html = requests.post(url_address,verify = False)
                                         html.encoding = html.apparent_encoding
@@ -728,24 +780,19 @@ class Portscan:
                                             else:
                                                 title=''
                                         else:
-                                            title=''
+                                            title='404'
 
                                         # print (title)
                                     except Exception as e:
                                         # print(e)
                                         title = ""
-
-                                        # Banner =Banner
-
-                                # Banner=''
-                                
                                 self.out_result(host,port,'Opened',Banner,service,url_address,title)
                             else:
                                 # print(self.flag)
                                 if  self.flag:
                                     self.out_result(host,port,'Close',"None",'Unknown','','')
                         except Exception as e:
-                            print(e)
+                            # print(e)
                             if  self.flag:
                                 self.out_result(host, port, 'Close', "None", 'Unknown','','')
                             continue
@@ -756,6 +803,8 @@ class Portscan:
                                 pass
                     continue
             except Exception as e:
+                print(str(e) + '----' + str(e.__traceback__.tb_lineno) + '行')
+
                 continue
 
     def scanservice(self,host,port,timeout):
@@ -886,7 +935,7 @@ class Portscan:
         else:
             Banner = (str(Banner).strip('\n').strip('\r').replace('\r', '').replace('\n', '').replace('"', '').replace('\'', ''))
 
-            tqdm.write(Fore.BLACK+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
+            tqdm.write(Fore.MAGENTA+'[-] ' + host.ljust(15, ' ') + '\t' + port.ljust(6, ' ') + '\t\t' + 'Close'.ljust(6,' ') + '\t\t' + service.ljust(
                 6, ' ') + '\t\t' + Banner.ljust(20, ' '))
         try:
             if self.out_txt!='':
@@ -899,9 +948,10 @@ class Portscan:
                     Banner = ((title.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
                 else:
                     Banner = ((Banner.strip()).encode(encoding='gbk',errors='ignore')).decode("gbk",errors='ignore')
-                Banner=Banner.replace("\\x",'\\\\x')
+                # Banner=Banner.replace("\\x",'\\\\x')
                 # print(Banner)
                 # Banner = Banner.strip()
+                Banner = html.escape(Banner)
                 out_str = '<script>add_table("'+host+'","'+port+'","'+zhuangtai+'","'+service+'","'+Banner+'","'+url_address+'");</script>'
 
                 if os.path.exists(self.out_html):
@@ -915,6 +965,53 @@ class Portscan:
         except Exception as e :
             print(Fore.RED+'文件写入出错！'+str(e))
         lock.release()  #执行完 ，释放锁
+    #ip:port 单端口扫描
+    def ip_port_scan(self,threadNum,timeout):
+        if (threadNum < len(self.ip_2_list)):
+            threadNum = threadNum
+        else:
+            threadNum = len(self.ip_2_list)
+        print(Fore.CYAN + '[*] 共扫描%s个IP,线程:%s,请稍后..' % (len(self.ip_2_list), threadNum))
+        print(Fore.YELLOW + '[*] The PortScan is Start')
+        count = len(self.ip_2_list)
+        try:
+            with tqdm(total=count, ncols=100) as pbar:
+                tqdm.write(
+                    Fore.CYAN + '[*] ' + 'Host'.ljust(15, ' ') + '\t' + 'Port'.ljust(6, ' ') + '\t\t' + 'Status'.ljust(
+                        6, ' ') + '\t\t' + 'Service'.ljust(6, ' ') + '\t\t' + 'Banner'.ljust(20, ' '))
+
+                self.portQueue.queue.clear()
+                kkk = int(threadNum / len(self.ip_2_list)) + 1
+                try:
+                    if kkk>len(self.ip_2_list):
+                        kkk=len(self.ip_2_list)
+                    for i in range(0, kkk):
+                        self.portQueue.put(self.ip_2_list[i])
+                        self.ip_2_list.remove(self.ip_2_list[i])
+                except:
+                    pass
+                if self.portQueue.qsize() > 0:
+                    try:
+                        threads = []  # 线程列表
+                        for i in range(threadNum):
+                            i = threading.Thread(target=self.portScanner, args=(timeout, pbar,'2'))
+                            threads.append(i)
+                        for t in threads:  # 启动线程
+                            t.start()
+                        for t in threads:  # 阻塞线程，等待线程结束
+                            t.join()
+
+                    except KeyboardInterrupt:
+                        self.portQueue.queue.clear()
+                        print(Fore.RED + "用户中途退出！")
+                        return
+
+                tqdm.write(Fore.YELLOW + '[*] The Scan is Complete!')
+                pbar.set_description(Fore.BLUE + '[*] Scan Complete!')  # 修改进度条描述
+                pbar.close()
+        except KeyboardInterrupt:
+            print(Fore.RED + "用户中途退出！")
+            pass
 
     def  scan(self,threadNum,timeout):
         if(threadNum<len(self.all_port_list)):
@@ -933,65 +1030,68 @@ class Portscan:
                 self.portQueue.queue.clear()
                 kkk = int(threadNum/len(self.all_port_list ))+1
                 try:
+                    if kkk>len(self.ip_1_list):
+                        kkk=len(self.ip_1_list)
                     for i in range(0,kkk):
                         for port in self.all_port_list :
                             # print(port_list)
                             self.portQueue.put(self.ip_1_list[i]+':'+str(port))
-
                         self.ip_1_list.remove(self.ip_1_list[i])
-                except:
-                    pass
-                    
+                    # for ip in self.ip_1_list:
+                    #     ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
 
-                # for ip in self.ip_1_list:
-                #     ip = ip.replace("https://",'').replace("http://",'').split("/")[0]
+                    #     for i in port_list:
+                    #         # print(port_list)
+                    #         self.portQueue.put(ip+':'+str(i))
+                        # print(threadNum)
+                        # print(self.portQueue.qsize())
+                        # print(threadNum)
+                    if self.portQueue.qsize() >0:
+                        try:
+                            threads = []  # 线程列表
+                            for i in range(threadNum):
+                                i = threading.Thread(target=self.portScanner, args=(timeout, pbar,'1'))
+                                threads.append(i)
+                            for t in threads:#启动线程
+                                t.start()
 
-                #     for i in port_list:
-                #         # print(port_list)
-                #         self.portQueue.put(ip+':'+str(i))
-                    # print(threadNum)
-                    # print(self.portQueue.qsize())
-                    # print(threadNum)
-                if self.portQueue.qsize() >0:
-                    try:
-                        threads = []  # 线程列表
-                        for i in range(threadNum):
-                            i = threading.Thread(target=self.portScanner, args=(timeout, pbar))
-                            threads.append(i)
-                        for t in threads:#启动线程
-                            t.start()
-                        for t in threads:#阻塞线程，等待线程结束
-                            t.join()
+                            for t in threads:#阻塞线程，等待线程结束
+                                t.join()
 
-                    except KeyboardInterrupt:
-                        self.portQueue.queue.clear()
-                        print(Fore.RED + "用户中途退出！")
-                        return
+                        except KeyboardInterrupt:
+                            self.portQueue.queue.clear()
+                            print(Fore.RED + "用户中途退出！")
+                            return
 
-                tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
-                pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
-                pbar.close()
+                    tqdm.write(Fore.YELLOW+'[*] The Scan is Complete!')
+                    pbar.set_description(Fore.BLUE+'[*] Scan Complete!')  # 修改进度条描述
+                    pbar.close()
+                except Exception as e:
+                    print(str(e) + '----' + str(e.__traceback__.tb_lineno) + '行')
         except KeyboardInterrupt:
             print(Fore.RED+"用户中途退出！")
             pass
 
 @click.command()
-@click.version_option(version='1.3.9')
+@click.version_option(version='1.4.1')
 @click.option("-i", "--ip",help="输入ip，例如：192.168.1.1、192.168.1.1/24、192.168.1.1-99",default='',is_eager=True)
 @click.option("-f", "--file",help="从文件加载ip列表",default='')
 @click.option("-p", "--port",help="定义扫描的端口，例如:80、80,8080、80-8000",default='',is_eager=True)
 @click.option("-pf", "--port_file",help="从文件加载端口列表，使用逗号分隔",default='')
 @click.option("-rp","--remove_port",help="定义排除的端口，例如:25,110",default='25,110')
+@click.option("--ip_port",help="对特定的IP及端口进行测试，从文件加载，格式为:IP:端口",is_flag=True)
 @click.option("-jp","--jump_port",help="跳过主机发现",is_flag=True)
 @click.option("-to","--timeout",help="设置超时时间",default=1,show_default=True)
 @click.option("-v", "--verbose", is_flag=True,help="显示详细信息")
 @click.option("-t", "--threads",show_default=True,default=400, help="定义扫描的线程")
 @click.option("--txt", help="定义输出文本文件",default='')
 @click.option("--html",help="定义输出html文件",default='')
-def click_main(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html):
+def click_main(ip,file,port,port_file,remove_port,ip_port,jump_port,timeout,verbose,threads,txt,html):
     # print(ip)
     portscan = Portscan()
-    portscan.chuli_canshu(ip,file,port,port_file,remove_port,jump_port,timeout,verbose,threads,txt,html)
+    # portscan.chuli_canshu('',file='C:\\Users\\qianxiao996\\Desktop\\22.txt',port='',port_file='',remove_port='25,110',ip_port='1',jump_port='',timeout=1,verbose='1',threads=400,txt='',html='')
+
+    portscan.chuli_canshu(ip,file,port,port_file,remove_port,ip_port,jump_port,timeout,verbose,threads,txt,html)
     
 
 if __name__ == '__main__':
@@ -1004,7 +1104,7 @@ if __name__ == '__main__':
  |_____/ \__,_| .__/ \___|_|    |_|   \___/|_|   \__|_____/ \___\__,_|_| |_|
              | |                                                           
              |_|                                       
-                       github: https://github.com/qianxiao996/Super-PortScan''')
+                       Github: https://github.com/qianxiao996/Super-PortScan''')
     click_main()
     # portscan = Portscan()
     # portscan.chuli_canshu('192.168.31.126/24','','','','','',1,0,400,'','')

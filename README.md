@@ -48,6 +48,9 @@ python3 Super-PortScan.py -f ip.txt -p 80,111,45-222
 
 python3 Super-PortScan.py -i 127.0.0.1 -v
 python3 Super-PortScan.py -i 127.0.0.1 -t 100
+python3 Super-PortScan.py -i 127.0.0.1:443
+python3 Super-PortScan.py -i 127.0.0.1:443 -v
+python3 Super-PortScan.py -f 1.txt --ip-port -v
 ```
 
 ![image-20210419134656178](./img/2.png)
