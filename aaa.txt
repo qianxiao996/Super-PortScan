@@ -1,0 +1,106 @@
+IP地址	端口	开放情况	服务	标题	Banner
+140.249.148.113	0	Closed	Null		Null
+150.138.11.107	0	Closed	Null		Null
+219.146.15.148	0	Closed	Null		Null
+219.146.15.149	0	Closed	Null		Null
+219.146.2.228	6030	Opened	Unknown		
+219.146.3.40	5050	Opened	Unknown		
+219.146.27.92	8016	Opened	http	cttl_Server	<html><head><title>cttl_Server</title></head><body><h1>cttl_
+219.146.27.92	8018	Opened	http	cttl Speedtest	<!DOCTYPE html><html><head>    <meta name="viewport" con
+150.138.11.110	8092	Opened	http	404 Not Found	{"timestamp":"2023-01-28T05:36:33.531+00:00","status":404,"e
+140.249.148.101	4646	Opened	Unknown		Type:LOGINStatus:STARTLength:0--
+140.249.148.100	4646	Opened	Unknown		Type:LOGINStatus:STARTLength:0--
+150.138.11.100	20	Closed	Null		Null
+150.138.14.92	21	Closed	Null		Null
+219.146.23.55	21	Closed	Null		Null
+150.138.9.156	22	Closed	Null		Null
+150.138.14.91	21	Closed	Null		Null
+140.249.148.64	80	Closed	Null		Null
+150.138.11.105	20	Closed	Null		Null
+140.249.148.96	80	Closed	Null		Null
+219.146.10.45	21	Closed	Null		Null
+150.138.14.91	22	Closed	Null		Null
+150.138.9.144	22	Closed	Null		Null
+150.138.11.100	21	Closed	Null		Null
+150.138.14.92	22	Closed	Null		Null
+150.138.11.105	21	Closed	Null		Null
+219.146.4.196	67	Closed	Null		Null
+219.146.15.153	320	Closed	Null		Null
+219.146.23.41	80	Closed	Null		Null
+150.138.9.156	123	Closed	Null		Null
+219.146.23.239	161	Closed	Null		Null
+150.138.9.144	161	Closed	Null		Null
+219.146.15.152	319	Closed	Null		Null
+150.138.9.156	80	Closed	Null		Null
+150.138.9.156	161	Closed	Null		Null
+219.146.23.238	161	Closed	Null		Null
+150.138.9.144	123	Closed	Null		Null
+150.138.9.144	80	Closed	Null		Null
+219.146.4.196	162	Closed	Null		Null
+140.249.148.132	1646	Closed	Null		Null
+219.146.13.11	1645	Closed	Null		Null
+140.249.148.132	1645	Closed	Null		Null
+219.146.13.11	1646	Closed	Null		Null
+222.173.66.101	1645	Closed	Null		Null
+219.146.23.239	443	Closed	Null		Null
+219.146.4.196	514	Closed	Null		Null
+219.146.13.11	1813	Closed	Null		Null
+219.146.15.150	500	Closed	Null		Null
+140.249.22.196	443	Closed	Null		Null
+219.146.13.11	1812	Closed	Null		Null
+219.146.2.222	1521	Closed	Null		Null
+219.146.23.44	1521	Closed	Null		Null
+219.146.23.44	1158	Closed	Null		Null
+222.173.66.101	1646	Closed	Null		Null
+222.173.66.101	1812	Closed	Null		Null
+140.249.201.219	443	Closed	Null		Null
+219.146.23.238	443	Closed	Null		Null
+222.173.66.97	1645	Closed	Null		Null
+219.146.8.59	80	Opened	http		HTTP/1.1 400 Bad RequestContent-Type: text/html; charset=u
+219.146.10.36	2121	Closed	Null		Null
+150.138.14.92	3306	Closed	Null		Null
+222.173.66.101	1813	Closed	Null		Null
+219.146.23.239	3181	Closed	Null		Null
+219.146.23.20	1813	Closed	Null		Null
+150.139.139.132	5020	Closed	Null		Null
+123.168.0.14	4430	Closed	Null		Null
+222.173.66.101	3799	Closed	Null		Null
+150.139.139.131	5020	Closed	Null		Null
+219.146.15.151	4500	Closed	Null		Null
+219.146.13.11	3799	Closed	Null		Null
+150.138.14.93	3306	Closed	Null		Null
+219.146.27.92	4001	Closed	Null		Null
+219.146.10.45	2121	Closed	Null		Null
+219.146.10.35	2121	Closed	Null		Null
+219.146.2.229	5020	Closed	Null		Null
+219.146.2.228	5020	Closed	Null		Null
+150.139.139.130	5020	Closed	Null		Null
+219.146.23.24	3799	Closed	Null		Null
+219.146.23.238	3181	Closed	Null		Null
+123.168.0.14	4009	Closed	Null		Null
+219.146.6.68	3058	Closed	Null		Null
+150.138.14.91	3306	Closed	Null		Null
+219.146.2.219	80	Opened	http	404 Not Found	HTTP/1.1 404 Not FoundServer: Apache-Coyote/1.1Content-L
+219.146.2.220	80	Opened	http	404 Not Found	<html><head><title>Apache Tomcat/7.0.73 - Error report</titl
+219.146.23.23	5020	Closed	Null		Null
+150.139.139.130	6030	Closed	Null		Null
+219.146.23.85	5020	Closed	Null		Null
+219.146.3.200	5081	Closed	Null		Null
+219.146.23.80	5020	Closed	Null		Null
+219.146.3.200	5090	Closed	Null		Null
+219.146.23.31	5020	Closed	Null		Null
+219.146.3.200	5070	Closed	Null		Null
+219.146.3.200	5080	Closed	Null		Null
+150.139.139.132	6030	Closed	Null		Null
+150.138.14.65	5560	Closed	Null		Null
+150.138.14.65	5556	Closed	Null		Null
+150.138.14.65	5557	Closed	Null		Null
+150.138.14.65	5558	Closed	Null		Null
+150.139.139.131	6030	Closed	Null		Null
+219.146.23.81	5020	Closed	Null		Null
+219.146.27.92	6001	Closed	Null		Null
+150.138.14.65	5555	Closed	Null		Null
+219.146.3.118	80	Opened	http	404 Not Found	HTTP/1.1 404 Not FoundServer: nginx/1.22.0Date: Sat, 28
+219.146.2.229	6030	Closed	Null		Null
+219.146.23.23	6030	Closed	Null		Null
+219.146.23.238	6379	Closed	Null		Null

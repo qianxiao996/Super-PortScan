@@ -92,24 +92,25 @@ class Portscan:
                                 if '/' in line[0] or '-' in line[0]:
                                     ip_list_temp = self.get_ip_d_list(line[0])
                                 else:
-                                    ip_list_temp = [line[1]]
+                                    ip_list_temp = [line[0].strip()]
                                 if len(line)==2:
                                     # print(line[1])
                                     if '-' in line[1]:
-                                        port_list_temp = self.get_port_list(line[1])
+                                        port_list_temp = self.get_port_list(line[1].strip())
                                     else:
-                                        port_list_temp = [line[1]]
+                                        port_list_temp = [line[1].strip()]
                                 else:
                                     port_list_temp = [80]
                                 # print(ip_list_temp)
                                 # print(port_list_temp)
                                 for ip_v in ip_list_temp:
                                     for port_v in port_list_temp:
-                                        temp_ip_port = ip_v+":"+port_v
+                                        temp_ip_port = ip_v+":"+port_v.strip()
                                         all_list.append(temp_ip_port.strip())
-                                # print(all_list)
                             file.close()
                             self.ip_2_list = list(filter(None, all_list))  # 去除 none 和 空字符
+                            # print(self.ip_2_list)
+
                         except:
                             print(Fore.RED + 'Error:文件读取错误！')
                             sys.exit()
