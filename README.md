@@ -40,17 +40,32 @@ python3 Super-PortScan.py -i 127.0.0.1/24 -p 80,8080
 python3 Super-PortScan.py -i 127.0.0.1 -p 80-999
 python3 Super-PortScan.py -i 127.0.0.1 -p 80,111,45-222
 
+ip.txt:
+127.0.0.1/24
+127.0.0.2
+127.0.0.3
 python3 Super-PortScan.py -f ip.txt
 python3 Super-PortScan.py -i ip.txt -p 80
 python3 Super-PortScan.py -f ip.txt -p 80,8080
 python3 Super-PortScan.py -f ip.txt -p 80-999
 python3 Super-PortScan.py -f ip.txt -p 80,111,45-222
 
-python3 Super-PortScan.py -i 127.0.0.1 -v
-python3 Super-PortScan.py -i 127.0.0.1 -t 100
-python3 Super-PortScan.py -i 127.0.0.1:443
+
+python3 Super-PortScan.py -i 127.0.0.1 -v  #显示扫描的全部端口
+python3 Super-PortScan.py -i 127.0.0.1 -t 100  #执行线程
+python3 Super-PortScan.py -i 127.0.0.1:443   #单端口扫描
 python3 Super-PortScan.py -i 127.0.0.1:443 -v
-python3 Super-PortScan.py -f 1.txt --ip-port -v
+
+ip_port.txt:
+127.0.0.1-3:443
+127.0.0.1/24:443
+127.0.0.1-3:442-443
+127.0.0.1/24:442-443
+python3 Super-PortScan.py -f ip_port.txt --ip-port
+
+#报告生成：
+python3 Super-PortScan.py -i 127.0.0.1  --txt result.txt
+python3 Super-PortScan.py -i 127.0.0.1  --html  result.html  #数据量较大时不建议使用html。
 ```
 
 ![image-20210419134656178](./img/2.png)

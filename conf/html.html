@@ -1,0 +1,150 @@
+<html>
+<head>
+    <title>Super-PortScan Sacn Result</title>
+    <link rel="stylesheet" href="http://cdn.datatables.net/1.10.21/css/jquery.dataTables.min.css">
+    <script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+    <script src="http://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/rainabba/jquery-table2excel@master/src/jquery.table2excel.js"></script>
+
+
+
+    <style type="text/css">
+        /*表格样式*/			
+        table {
+            /*table-layout: fixed;*/
+            /* word-break:break-all; */
+            width: 80%;
+            margin: 10px auto;
+            border-collapse: collapse;
+        }				
+        th,td {
+            text-align: center;
+            border: 1px solid #ccc;
+        }		
+        th {
+            min-width:50px;
+            font-weight: normal;
+            color:white;
+            background-color: rgb(8, 103, 193);
+            padding: 0.5em;
+        }	
+        td{
+            min-width:50px;
+            font-weight: normal;
+            /* text-align: left; */
+            padding: 0.5em;
+        }	
+        table tbody tr td a {
+            color: #06f;
+            text-decoration: none;
+        }	
+
+        table tbody tr td a:visited
+        {
+            color:	green;
+            text-decoration: none;
+
+        }
+        table tbody tr:nth-child(odd) {
+             /* 匹配奇数行 */
+            background-color: #F1F1F1  ;
+            color: black;
+        }
+
+        table tbody tr:nth-child(even) {
+            /* 匹配偶数行 */
+            background-color:white ;
+            color: black;
+        }
+
+    </style>
+</head>
+<body style="margin:0px;background-color:#F0F2F5">
+    <div style="position: fixed;background: rgb(8, 103, 193);width:100%; z-index:9999">
+        <p  style="color:white;width: 100%;height: 20px;display: block;line-height: 20px;text-align: center;">Super-PortScan Sacn Result</p>
+    </div>
+    <div style="padding-top:70px;padding-bottom:0px;padding-left:80px;padding-right:80px">
+        <table id="table" align="center">
+        </table>
+    </div>
+</body>
+</html>
+<script>
+
+    $("#table").dataTable({
+         //lengthMenu: [5, 10, 20, 30],//这里也可以设置分页，但是不能设置具体内容，只能是一维或二维数组的方式，所以推荐下面language里面的写法。
+        destroy:true,
+        "autoWidth": false,
+        paging: true,//分页
+        ordering: true,//是否启用排序
+        searching: true,//搜索
+        language: {
+            lengthMenu: '<select class="form-control input-xsmall"><option value="1">1</option><option value="10">10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="1000">1000</option><option value="5000">5000</option><option value="10000">10000</option><option value="100000">100000</option><option value="1000000">1000000</option></select>条记录',//左上角的分页大小显示。
+            search: '<button onclick="exportCsv()" style="margin:2px 30px">导出CSV</button><span class="label label-success" style="">搜索:</span>',//右上角的搜索文本，可以写html标签
+            paginate: {//分页的样式内容。
+                previous: "上一页",
+                next: "下一页",
+                first: "第一页",
+                last: "最后"
+            },
+            zeroRecords: "无扫描结果",//table tbody内容为空时，tbody的内容。
+            //下面三者构成了总体的左下角的内容。
+            info: "总共_PAGES_ 页，显示第_START_ 到第 _END_ ，筛选之后得到 _TOTAL_ 条，初始_MAX_ 条 ",//左下角的信息显示，大写的词为关键字。
+            infoEmpty: "0条记录",//筛选为空时左下角的显示。
+            infoFiltered: ""//筛选之后的左下角筛选提示，
+        },
+        paging: true,
+        pagingType: "full_numbers",//分页样式的类型
+
+
+        columns: [
+        { title: "IP地址", sortable: true },
+        { title: "端口", sortable: true },
+        { title: "状态", sortable: true },
+        { title: "服务", sortable: true },
+        { title: "Banner", sortable: true },
+        { title: "URL地址", sortable: true, render: function(data, type, row) { return '<a  href="'+data+'" target="_blank">' + data + '</a>'; }},
+    ]       
+
+    });
+    $("#table_local_filter input[type=search]").css({ width: "auto" });//右上角的默认搜索文本框，不写这个就超出去了。
+    $('#table').on( 'click', 'tr', function () {
+        var table = $('#table').DataTable();
+        // var id = table.row(this).row();
+        var background = $(this).css('backgroundColor');
+        // console.log(background);
+
+        if(background=="rgb(216, 191, 216)")
+        {
+            $(this).css("background","white");
+        }
+        else
+        {
+            $(this).css("background","rgb(216, 191, 216)");
+        }
+
+        // alert( '被点击行的id是 '+id );
+    } );
+
+    function add_table(ip,port,flag,service,banner,url){
+        var t = $('#table').DataTable();
+        t.row.add( [ip,port,flag,service,banner,url
+        ] ).draw( false );
+    }
+
+
+
+    function exportCsv() {
+            $("#table").table2excel({
+                exclude: ".noExl",
+                name: "Excel Document Name",
+                // Excel文件的名称
+                filename: "Super-PortScan Sacn Result",
+                exclude_img: true,
+                exclude_links: true,
+                exclude_inputs: true
+            });
+        }
+
+
+</script>

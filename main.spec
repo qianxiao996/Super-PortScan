@@ -3,7 +3,7 @@
 block_cipher = None
 
 
-a = Analysis(['Super-PortScan.py'],
+a = Analysis(['main.py'],
              pathex=['D:\\code\\Python37\\obj\\Super-PortScan'],
              binaries=[],
              datas=[],
